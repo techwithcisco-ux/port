@@ -10,6 +10,7 @@ import {
   Adinkrahene, Nsoromma, Sankofa, Aya, Dwennimmen,
   BlackStar, GyeNyame, GhanaFlagStripe, NkrumahSilhouette,
 } from './AdinkraSymbols';
+import InstallBanner from './InstallBanner';
 
 type ViewMode = 'owner' | 'manager';
 const VIEW_MODE_KEY = 'branchport-view-mode';
@@ -238,6 +239,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <NavLinks mode={mode} onNavigate={closeNav} />
             </nav>
             <ViewSwitch mode={mode} onChange={changeMode} />
+            <InstallBanner />
             <ProfileFooter onNavigate={closeNav} />
           </div>
         </div>
@@ -255,6 +257,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <NavLinks mode={mode} />
         </nav>
 
+        <InstallBanner />
         <ProfileFooter />
       </aside>
 

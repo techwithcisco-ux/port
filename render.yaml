@@ -1,7 +1,7 @@
 services:
   # Dashboard — main management app
-  - type: static_site
-    name: branchport-dashboard
+  - name: branchport-dashboard
+    type: web
     runtime: static
     buildCommand: npm install && npm run build:dashboard
     staticPublishPath: apps/dashboard/dist
@@ -18,8 +18,8 @@ services:
         destination: /index.html
 
   # POS — point of sale app
-  - type: static_site
-    name: branchport-pos
+  - name: branchport-pos
+    type: web
     runtime: static
     buildCommand: npm install && npm run build:pos
     staticPublishPath: apps/pos/dist
@@ -35,9 +35,9 @@ services:
         source: /*
         destination: /index.html
 
-  # Market — market analytics app (standalone site, root base path)
-  - type: static_site
-    name: branchport-market
+  # Market — market analytics app
+  - name: branchport-market
+    type: web
     runtime: static
     buildCommand: npm install && VITE_BASE=/ npm run build:market
     staticPublishPath: apps/market/dist
@@ -50,8 +50,6 @@ services:
         value: "0"
       - key: VITE_MARKET_ADMIN_PASS
         value: market2024
-      - key: VITE_API_URL
-        value: https://gpoavyfgeolwovaquiog.supabase.co
     routes:
       - type: rewrite
         source: /*

@@ -34,9 +34,11 @@ import OwnerStockAllocation from './routes/owner/OwnerStockAllocation';
 import Account from './routes/owner/Account';
 import StaffNotice from './routes/StaffNotice';
 import Onboarding from './routes/Onboarding';
+import SplashScreen from './components/SplashScreen';
 import ManagerStock from './routes/manager/ManagerStock';
 import ManagerMoney from './routes/manager/ManagerMoney';
 import ManagerTeam from './routes/manager/ManagerTeam';
+import { useState, useCallback } from 'react';
 
 // Route guard: renders children only once a profile with the required role
 // has loaded. The owner implicitly has manager-level access too, so
@@ -100,8 +102,15 @@ function RequireStaff({ children }: { children: JSX.Element }) {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('bp-splash-seen'));
+  const handleSplashComplete = useCallback(() => {
+    sessionStorage.setItem('bp-splash-seen', '1');
+    setShowSplash(false);
+  }, []);
+
   return (
     <ErrorBoundary>
+    {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
     <AuthProvider>
       <BrowserRouter>
         <Routes>

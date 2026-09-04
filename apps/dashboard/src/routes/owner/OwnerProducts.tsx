@@ -36,30 +36,30 @@ export default function OwnerProducts() {
 
   return (
     <DashboardLayout>
-      <div className="mb-6">
+      <div className="mb-3">
         <h1 className="text-2xl font-bold text-gray-900">Products</h1>
         <p className="text-sm text-gray-500 mt-1">All products, recent stock intake, and suppliers.</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-2xl p-5 border border-gray-200">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="bg-white rounded-2xl p-4 border border-gray-200">
           <p className="text-xs text-gray-500 uppercase">Products</p>
           <p className="text-3xl font-bold text-gray-900 mt-2">{products.length}</p>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-gray-200">
+        <div className="bg-white rounded-2xl p-4 border border-gray-200">
           <p className="text-xs text-gray-500 uppercase">Suppliers</p>
           <p className="text-3xl font-bold text-gray-900 mt-2">{suppliers.length}</p>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-gray-200">
+        <div className="bg-white rounded-2xl p-4 border border-gray-200">
           <p className="text-xs text-gray-500 uppercase">Recent Intakes</p>
           <p className="text-3xl font-bold text-gray-900 mt-2">{intakes.length}</p>
         </div>
       </div>
 
       {/* Product list */}
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-8">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-4">
+        <div className="px-6 py-2 border-b border-gray-200 flex items-center justify-between">
           <div>
             <h2 className="text-base font-semibold text-gray-900">All Products</h2>
             <p className="text-xs text-gray-400 mt-1">{products.length} products in your catalog</p>
@@ -73,7 +73,7 @@ export default function OwnerProducts() {
         </div>
         <div className="divide-y">
           {products.map((p) => (
-            <div key={p.id} className="px-6 py-4 flex items-center justify-between">
+            <div key={p.id} className="px-6 py-2 flex items-center justify-between">
               <div>
                 <p className="font-semibold text-gray-900">{p.name}</p>
                 <p className="text-xs text-gray-500 mt-1">
@@ -103,8 +103,8 @@ export default function OwnerProducts() {
 
       {/* Recent intake */}
       {intakes.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-8">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-4">
+          <div className="px-6 py-2 border-b border-gray-200">
             <h2 className="text-base font-semibold text-gray-900">Recent Stock Intake</h2>
             <p className="text-xs text-gray-400 mt-1">Last 10 stock purchases</p>
           </div>

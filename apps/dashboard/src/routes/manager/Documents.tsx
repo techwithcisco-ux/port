@@ -17,9 +17,9 @@ const PERIODS: Array<{ key: string; label: string; from: () => string }> = [
 function ReceiptPrintView({ invoice }: { invoice: Invoice }) {
   const items = (invoice.items ?? []) as Array<{ product_name: string; quantity: number; unit_price: number; total: number; variant_name?: string }>;
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-6 max-w-md mx-auto print:shadow-none print:border-0">
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 max-w-md mx-auto print:shadow-none print:border-0">
       {/* Header */}
-      <div className="text-center mb-6 border-b border-dashed border-gray-300 pb-4">
+      <div className="text-center mb-3 border-b border-dashed border-gray-300 pb-2">
         <p className="text-lg font-bold text-gray-900">BranchPort</p>
         <p className="text-xs text-gray-500 mt-1">Sales Receipt</p>
         <p className="text-xs text-gray-400 mt-0.5">{invoice.invoice_number}</p>
@@ -167,7 +167,7 @@ export default function Documents() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           <div className="bg-white border border-gray-200 rounded-2xl p-4">
             <p className="text-xs font-medium text-gray-500 uppercase">Total</p>
             <p className="text-2xl font-bold text-gray-900 mt-1">{summary.total}</p>
@@ -203,7 +203,7 @@ export default function Documents() {
 
       {/* Selected receipt — print view */}
       {selected && (
-        <div className="mb-8">
+        <div className="mb-4">
           <div className="flex items-center justify-between mb-4 no-print">
             <button
               onClick={() => setSelectedId(null)}
@@ -226,9 +226,9 @@ export default function Documents() {
       {!selected && (
         <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
           {loading ? (
-            <p className="p-6 text-gray-500 text-sm">Loading…</p>
+            <p className="p-4 text-gray-500 text-sm">Loading…</p>
           ) : filtered.length === 0 ? (
-            <p className="p-6 text-gray-500 text-sm">No receipts found.</p>
+            <p className="p-4 text-gray-500 text-sm">No receipts found.</p>
           ) : (
             <div className="divide-y divide-gray-100">
               {filtered.map((inv) => (

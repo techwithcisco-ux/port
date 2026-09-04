@@ -13,7 +13,7 @@ export default function StaffNotice() {
   return (
     <div className="min-h-screen bg-gray-50 grid place-items-center p-4">
       <div className="w-full max-w-md rounded-2xl border border-gray-200/80 bg-white p-8 shadow-[0_8px_30px_rgba(17,24,39,0.08)]">
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-3 flex items-center gap-3">
           <div className="h-10 w-10 shrink-0 rounded-xl bg-gray-900 grid place-items-center">
             <span className="text-base font-bold text-white">B</span>
           </div>

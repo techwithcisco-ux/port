@@ -106,7 +106,7 @@ function PersonCard({
       </div>
 
       {expanded && (
-        <div className={`border-t border-gray-100 px-4 py-3 space-y-3 ${bgColor[urgencyColor]}`}>
+        <div className={`border-t border-gray-100 px-4 py-3 space-y-2 ${bgColor[urgencyColor]}`}>
           {person.notes && <p className="text-xs text-gray-500 italic">📝 {person.notes}</p>}
 
           {payments.length > 0 && (
@@ -257,10 +257,10 @@ export default function Ledger() {
         { color: 'bg-amber-500', label: 'Due soon (7-30 days)' },
         { color: 'bg-orange-500', label: 'Overdue (30-60 days)' },
         { color: 'bg-red-500', label: 'Critical (60+ days)' },
-      ]} className="mb-6" />
+      ]} className="mb-3" />
 
       {/* Tab switcher */}
-      <div className="flex gap-1.5 mb-6 max-w-xs">
+      <div className="flex gap-1.5 mb-3 max-w-xs">
         <button onClick={() => { setTab('debtors'); setExpandedId(null); setStatusFilter('all'); }}
           className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${tab === 'debtors' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
           👤 Debtors ({debtorsSummary.count})
@@ -272,7 +272,7 @@ export default function Ledger() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 max-w-4xl lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-3 mb-3 max-w-4xl lg:grid-cols-4">
         <ColorStatCard
           label={tab === 'debtors' ? 'Owed to us' : 'We owe'}
           value={loading ? '…' : formatGHS(summary.owed)}
@@ -307,7 +307,7 @@ export default function Ledger() {
           {tab === 'debtors' ? 'No debtors yet. They appear when a customer makes a partial payment at the POS.' : 'No creditors yet. They appear when you buy on credit from suppliers.'}
         </p>
       ) : (
-        <div className="space-y-3 max-w-4xl">
+        <div className="space-y-2 max-w-4xl">
           {persons.map((person) => {
             const payments = tab === 'debtors'
               ? debtorPayments.filter((p) => p.debtor_id === person.id).map((p) => ({ id: p.id, amount: p.amount, note: p.note, paidAt: p.paid_at }))

@@ -435,10 +435,10 @@ export default function StockIntake() {
       <p className="page-sub mb-2">
         Buy from distributor → Add variants → Auto-calculate costs → Set profit → Done.
       </p>
-      <GhanaFlagStripe height={4} showStar className="mb-6 rounded-full" />
+      <GhanaFlagStripe height={4} showStar className="mb-3 rounded-full" />
 
       {/* Step indicators */}
-      <div className="flex items-center gap-2 mb-6 flex-wrap">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         {[
           { key: 'distributor', label: '① Distributor' },
           { key: 'intake', label: '② Add Stock' },
@@ -468,8 +468,8 @@ export default function StockIntake() {
           STEP 1: SELECT OR ADD DISTRIBUTOR
           ═══════════════════════════════════════════════════════════════ */}
       {step === 'distributor' && (
-        <div className="grid gap-6 lg:grid-cols-2 max-w-5xl">
-          <form onSubmit={handleAddDistributor} className="card p-6 space-y-4 h-fit">
+        <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
+          <form onSubmit={handleAddDistributor} className="card p-4 space-y-2 h-fit">
             <h2 className="text-lg font-semibold text-gray-900">Add New Distributor</h2>
             <p className="text-sm text-gray-500">Who did you buy from?</p>
             <div>
@@ -483,7 +483,7 @@ export default function StockIntake() {
           <div className="card overflow-hidden">
             <p className="card-header">Existing Distributors ({suppliers.length})</p>
             {suppliers.length === 0 ? (
-              <p className="p-6 text-gray-500 text-sm">No distributors yet.</p>
+              <p className="p-4 text-gray-500 text-sm">No distributors yet.</p>
             ) : (
               <ul className="divide-y">
                 {suppliers.map((s) => {
@@ -574,7 +574,7 @@ export default function StockIntake() {
               return (
                 <div key={draft.key} className="card overflow-hidden">
                   {/* Product header */}
-                  <div className="px-5 py-4 border-b border-gray-100">
+                  <div className="px-5 py-2 border-b border-gray-100">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <label className="label mb-1">Product Name</label>
@@ -629,7 +629,7 @@ export default function StockIntake() {
                   </div>
 
                   {/* Variant rows */}
-                  <div className="p-5 space-y-3">
+                  <div className="p-4 space-y-2">
                     {!draft.hasVariants ? (
                       /* ---- NO VARIANT: Single unit ---- */
                       <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
@@ -731,7 +731,7 @@ export default function StockIntake() {
                     )}
 
                     {/* Product totals */}
-                    <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-gray-100 text-sm">
+                    <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100 text-sm">
                       <p className="text-gray-500">
                         Total cost: <span className="font-bold text-gray-900">{formatGHS(totalAllCosts)}</span>
                       </p>
@@ -744,7 +744,7 @@ export default function StockIntake() {
 
                     {/* Credit / Payment */}
                     <div className="pt-3 border-t border-gray-100">
-                      <div className="flex items-center gap-4 mb-2">
+                      <div className="flex items-center gap-3 mb-2">
                         <label className="flex items-center gap-2 text-sm text-gray-600">
                           <input type="checkbox" checked={draft.paidOnCredit}
                             onChange={(e) => updateItem(draft.key, { paidOnCredit: e.target.checked })}
@@ -809,7 +809,7 @@ export default function StockIntake() {
                 <p className="text-gray-500">No products yet. Add your first in Step ②.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {products.map((p) => {
                   const variants = productVariants.filter((v) => v.product_id === p.id);
                   const intakeForProduct = intakes.filter((i) => i.product_id === p.id);
@@ -937,7 +937,7 @@ export default function StockIntake() {
                 <p className="text-gray-500">No intake records yet.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {intakes.map((intake) => {
                   const owed = Number(intake.amount_owed);
                   const paid = Number(intake.amount_paid);

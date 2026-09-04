@@ -216,7 +216,7 @@ export default function Pos() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-md space-y-3 pb-4">
+      <div className="mx-auto max-w-md space-y-2 pb-2">
         <div className="card p-3 sm:p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -520,7 +520,7 @@ export default function Pos() {
             </div>
           </>
         ) : (
-          <div className="card p-5 text-sm text-gray-500">Add a branch before opening the POS.</div>
+          <div className="card p-4 text-sm text-gray-500">Add a branch before opening the POS.</div>
         )}
       </div>
     </DashboardLayout>

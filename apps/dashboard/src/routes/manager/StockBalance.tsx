@@ -156,7 +156,7 @@ export default function StockBalance() {
       </div>
 
       {/* Filters */}
-      <div className="card p-4 mb-6 flex flex-wrap gap-4 items-end max-w-4xl">
+      <div className="card p-4 mb-3 flex flex-wrap gap-3 items-end max-w-4xl">
         <div className="flex-1 min-w-[200px]">
           <label className="label">Branch</label>
           <select
@@ -181,10 +181,10 @@ export default function StockBalance() {
         </div>
       </div>
 
-      <ColorLegend items={[{ color: 'bg-green-500', label: 'Healthy stock' }, { color: 'bg-amber-500', label: 'Low stock' }, { color: 'bg-red-500', label: 'Out of stock' }, { color: 'bg-blue-500', label: 'Revenue' }, { color: 'bg-orange-500', label: 'Cost value' }]} className="mb-6" />
+      <ColorLegend items={[{ color: 'bg-green-500', label: 'Healthy stock' }, { color: 'bg-amber-500', label: 'Low stock' }, { color: 'bg-red-500', label: 'Out of stock' }, { color: 'bg-blue-500', label: 'Revenue' }, { color: 'bg-orange-500', label: 'Cost value' }]} className="mb-3" />
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 max-w-5xl lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-3 mb-3 max-w-5xl lg:grid-cols-5">
         <ColorStatCard label="Items in stock" value={loading ? '…' : String(totals.items)} color="blue" icon="📦" sublabel="Products with stock" />
         <ColorStatCard label="Total units" value={loading ? '…' : totals.totalUnits.toLocaleString()} color="purple" icon="📊" sublabel="Across all branches" />
         <ColorStatCard label="Cost value" value={loading ? '…' : formatGHS(totals.totalCost)} color="orange" icon="💵" sublabel="What stock cost you" />
@@ -193,16 +193,16 @@ export default function StockBalance() {
       </div>
 
       {/* Stock table */}
-      <div className="card overflow-hidden max-w-5xl mb-6">
+      <div className="card overflow-hidden max-w-5xl mb-3">
         <p className="card-header">
           {selectedBranch === 'all'
             ? 'Stock balance — all branches'
             : `Stock balance — ${selectedBranchObj?.name}`}
         </p>
         {loading ? (
-          <p className="p-6 text-gray-500 text-sm">Loading…</p>
+          <p className="p-4 text-gray-500 text-sm">Loading…</p>
         ) : filtered.length === 0 ? (
-          <p className="p-6 text-gray-500 text-sm">No products found.</p>
+          <p className="p-4 text-gray-500 text-sm">No products found.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

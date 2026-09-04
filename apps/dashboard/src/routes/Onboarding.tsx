@@ -176,7 +176,7 @@ export default function Onboarding() {
           {/* ══════ STEP 1: Business Type ══════ */}
           {step === 1 && (
             <div className="onboard-step">
-              <div className="text-center mb-6">
+              <div className="text-center mb-3">
                 <BlackStar size={40} color="var(--ghana-gold)" className="mx-auto mb-3" />
                 <h1 className="text-xl font-bold text-gray-900">What kind of business is this?</h1>
                 <p className="text-sm text-gray-500 mt-1">Choose the one that fits best</p>
@@ -240,13 +240,13 @@ export default function Onboarding() {
           {/* ══════ STEP 2: Business Name ══════ */}
           {step === 2 && (
             <div className="onboard-step">
-              <div className="text-center mb-6">
+              <div className="text-center mb-3">
                 <div className="text-4xl mb-3">🏪</div>
                 <h1 className="text-xl font-bold text-gray-900">What's the business name?</h1>
                 <p className="text-sm text-gray-500 mt-1">What do people call your shop?</p>
               </div>
 
-              <div className="mb-6">
+              <div className="mb-3">
                 <input
                   autoFocus
                   value={businessName}
@@ -274,7 +274,7 @@ export default function Onboarding() {
           {/* ══════ STEP 3: Username ══════ */}
           {step === 3 && (
             <div className="onboard-step">
-              <div className="text-center mb-6">
+              <div className="text-center mb-3">
                 <div className="h-16 w-16 rounded-full mx-auto mb-3 onboard-avatar grid place-items-center">
                   <span className="text-2xl font-bold text-white">{username ? username[0].toUpperCase() : '?'}</span>
                 </div>
@@ -282,7 +282,7 @@ export default function Onboarding() {
                 <p className="text-sm text-gray-500 mt-1">This is how you'll appear to your team</p>
               </div>
 
-              <div className="mb-6">
+              <div className="mb-3">
                 <input
                   autoFocus
                   value={username}
@@ -310,13 +310,13 @@ export default function Onboarding() {
           {/* ══════ STEP 4: Categories ══════ */}
           {step === 4 && (
             <div className="onboard-step">
-              <div className="text-center mb-6">
+              <div className="text-center mb-3">
                 <div className="text-4xl mb-3">📦</div>
                 <h1 className="text-xl font-bold text-gray-900">What do you sell?</h1>
                 <p className="text-sm text-gray-500 mt-1">Pick all that apply — helps us personalize your experience</p>
               </div>
 
-              <div className="space-y-5 mb-6 onboard-categories-scroll">
+              <div className="space-y-5 mb-3 onboard-categories-scroll">
                 {CATEGORIES.map((cat) => (
                   <div key={cat.label}>
                     <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{cat.label}</p>

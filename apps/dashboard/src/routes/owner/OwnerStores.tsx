@@ -145,7 +145,7 @@ export default function OwnerStores() {
 
   return (
     <DashboardLayout>
-      <div className="mb-6">
+      <div className="mb-3">
         <h1 className="page-title">Stores</h1>
         <p className="page-sub mt-1">All your branches — tap to view, edit, or add a new one.</p>
       </div>
@@ -153,7 +153,7 @@ export default function OwnerStores() {
 
 
       {/* ── Branch cards + Add Store card ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
         {branchMetrics.map((bm, i) => {
           const isEditing = editingId === bm.branch.id;
           const isDeleting = deletingId === bm.branch.id;
@@ -161,7 +161,7 @@ export default function OwnerStores() {
           return (
             <div
               key={bm.branch.id}
-              className={`rounded-2xl border-2 p-5 transition-all ${
+              className={`rounded-2xl border-2 p-4 transition-all ${
                 selectedBranch === bm.branch.id
                   ? 'border-gray-900 bg-gray-50 shadow-sm'
                   : 'border-gray-200 bg-white'
@@ -169,7 +169,7 @@ export default function OwnerStores() {
             >
               {isEditing ? (
                 /* ── Edit mode ── */
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <input
                     autoFocus
                     value={editName}
@@ -282,7 +282,7 @@ export default function OwnerStores() {
         ) : (
           <button
             onClick={() => setShowAdd(true)}
-            className="rounded-2xl border-2 border-dashed border-gray-300 bg-white p-5 flex flex-col items-center justify-center text-gray-400 hover:border-gray-900 hover:text-gray-700 transition-all min-h-[160px]"
+            className="rounded-2xl border-2 border-dashed border-gray-300 bg-white p-4 flex flex-col items-center justify-center text-gray-400 hover:border-gray-900 hover:text-gray-700 transition-all min-h-[160px]"
           >
             <span className="text-3xl mb-2">+</span>
             <span className="text-sm font-medium">Add Store</span>
@@ -292,13 +292,13 @@ export default function OwnerStores() {
 
       {/* ── Selected branch detail ── */}
       {selectedMetrics && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-8">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">{selectedMetrics.branch.name} — Details</h2>
             <button onClick={() => setSelectedBranch(null)} className="text-sm text-gray-500 hover:text-gray-700">Close</button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
             <div className="bg-gray-50 rounded-xl p-4">
               <p className="text-xs text-gray-500">Total Revenue</p>
               <p className="text-xl font-bold tabular-nums text-gray-900">{formatGHS(selectedMetrics.revenue)}</p>

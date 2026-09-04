@@ -120,12 +120,12 @@ export default function OwnerStockAllocation() {
     <DashboardLayout>
       <BackButton />
       <h1 className="page-title mb-1">Stock allocation</h1>
-      <p className="page-sub mb-6">
+      <p className="page-sub mb-3">
         Allocate stock to yourself or to branches. As owner you have full control over inventory distribution.
       </p>
 
-      <div className="grid gap-6 lg:grid-cols-2 max-w-5xl">
-        <form onSubmit={handleAllocate} className="card p-6 space-y-4 h-fit">
+      <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
+        <form onSubmit={handleAllocate} className="card p-4 space-y-2 h-fit">
           {/* Product selection */}
           <div>
             <label className="label">Product</label>
@@ -153,7 +153,7 @@ export default function OwnerStockAllocation() {
 
           {/* Distributor & cost — stepper based */}
           {selected && (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {/* Distributor */}
               <div>
                 <label className="label">Distributor</label>
@@ -304,7 +304,7 @@ export default function OwnerStockAllocation() {
         <div className="card overflow-hidden">
           <p className="card-header">Recent allocations</p>
           {recent.length === 0 ? (
-            <p className="p-6 text-gray-500 text-sm">Nothing allocated yet.</p>
+            <p className="p-4 text-gray-500 text-sm">Nothing allocated yet.</p>
           ) : (
             <ul className="divide-y">
               {recent.map((r) => (

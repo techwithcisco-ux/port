@@ -221,7 +221,7 @@ export default function PaymentReconciliation() {
       )}
 
       {/* Side toggle */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-3">
         <button
           onClick={() => { setSide('money-in'); setExpandedId(null); }}
           className={`px-5 py-3 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 ${
@@ -241,7 +241,7 @@ export default function PaymentReconciliation() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <div className={`rounded-2xl p-4 ${summary.totalOwed > 0 ? (side === 'money-in' ? 'bg-amber-50 border border-amber-200' : 'bg-red-50 border border-red-200') : 'bg-green-50 border border-green-200'}`}>
           <p className={`text-xs font-medium uppercase ${side === 'money-in' ? 'text-amber-600' : 'text-red-600'}`}>
             {side === 'money-in' ? 'Still owed to you' : 'You still owe'}
@@ -280,7 +280,7 @@ export default function PaymentReconciliation() {
           <p className="text-xs text-gray-500 mt-1">All settled up.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {people.map((person) => {
             const isExpanded = expandedId === person.id;
             const urgencyColor = person.daysOld > 60 ? 'border-l-red-500' : person.daysOld > 30 ? 'border-l-amber-500' : 'border-l-green-500';
@@ -319,7 +319,7 @@ export default function PaymentReconciliation() {
 
                 {/* Expanded: payment history + record payment */}
                 {isExpanded && (
-                  <div className="border-t border-gray-100 px-4 py-3 space-y-3 bg-gray-50/50">
+                  <div className="border-t border-gray-100 px-4 py-3 space-y-2 bg-gray-50/50">
                     {/* Payment history */}
                     {person.payments.length > 0 && (
                       <div>
@@ -386,7 +386,7 @@ export default function PaymentReconciliation() {
       {/* Recent payments log */}
       {!loading && unmatchedPayments.length > 0 && (
         <div className="mt-8 bg-white border border-gray-200 rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100">
+          <div className="px-4 py-2 border-b border-gray-100">
             <p className="text-sm font-semibold text-gray-900">Recent Payments</p>
             <p className="text-xs text-gray-500">All payments recorded across debtors and creditors</p>
           </div>

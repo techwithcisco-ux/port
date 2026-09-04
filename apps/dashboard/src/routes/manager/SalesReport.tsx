@@ -177,7 +177,7 @@ export default function SalesReport() {
         </button>
       </div>
 
-      <div className="card p-4 mb-6 flex flex-wrap gap-4 items-end">
+      <div className="card p-4 mb-3 flex flex-wrap gap-3 items-end">
         <div>
           <label className="label">Period</label>
           <select
@@ -223,27 +223,27 @@ export default function SalesReport() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 lg:grid-cols-4">
-        <div className="card p-6">
+      <div className="grid grid-cols-2 gap-3 sm:gap-3 mb-3 lg:grid-cols-4">
+        <div className="card p-4">
           <p className="stat-label">Revenue</p>
           <p className="stat-value">{formatGHS(totals.revenue)}</p>
         </div>
-        <div className="card p-6">
+        <div className="card p-4">
           <p className="stat-label">Transactions</p>
           <p className="stat-value">{totals.transactions}</p>
         </div>
-        <div className="card p-6">
+        <div className="card p-4">
           <p className="stat-label">Units sold</p>
           <p className="stat-value">{totals.units}</p>
         </div>
-        <div className="card p-6">
+        <div className="card p-4">
           <p className="stat-label">Pricing flags</p>
           <p className="stat-value">{totals.flagged}</p>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 mb-6">
-        <div className="card p-6">
+      <div className="grid gap-3 lg:grid-cols-2 mb-3">
+        <div className="card p-4">
           <p className="text-sm font-medium text-gray-700 mb-4">Revenue by day</p>
           {daily.length === 0 ? (
             <p className="text-sm text-gray-400">No sales in this range.</p>
@@ -252,7 +252,7 @@ export default function SalesReport() {
           )}
         </div>
 
-        <div className="card p-6">
+        <div className="card p-4">
           <p className="text-sm font-medium text-gray-700 mb-4">Revenue by branch</p>
           {byBranch.length === 0 ? (
             <p className="text-sm text-gray-400">No sales in this range.</p>
@@ -262,10 +262,10 @@ export default function SalesReport() {
         </div>
       </div>
 
-      <div className="card overflow-hidden mb-6">
+      <div className="card overflow-hidden mb-3">
         <p className="card-header">Top products in this range</p>
         {byProduct.length === 0 ? (
-          <p className="p-6 text-gray-500 text-sm">No sales in this range.</p>
+          <p className="p-4 text-gray-500 text-sm">No sales in this range.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -296,9 +296,9 @@ export default function SalesReport() {
       <div className="card overflow-hidden">
         <p className="card-header">Transactions</p>
         {loading ? (
-          <p className="p-6 text-gray-500 text-sm">Loading…</p>
+          <p className="p-4 text-gray-500 text-sm">Loading…</p>
         ) : sales.length === 0 ? (
-          <p className="p-6 text-gray-500 text-sm">No transactions in this range.</p>
+          <p className="p-4 text-gray-500 text-sm">No transactions in this range.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

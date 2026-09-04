@@ -72,12 +72,12 @@
 @layer components {
   /* Typography ------------------------------------------------------ */
   .page-title {
-    @apply text-xl sm:text-2xl font-bold tracking-tight text-gray-900;
+    @apply text-lg sm:text-xl font-bold tracking-tight text-gray-900;
     letter-spacing: -0.02em;
   }
 
   .page-sub {
-    @apply mt-1 text-xs sm:text-sm text-gray-500;
+    @apply mt-0.5 text-xs text-gray-500;
   }
 
   .stat-label {
@@ -85,22 +85,22 @@
   }
 
   .stat-value {
-    @apply text-2xl sm:text-3xl font-semibold tracking-tight mt-2 text-gray-900 tabular-nums;
+    @apply text-xl sm:text-2xl font-semibold tracking-tight mt-1 text-gray-900 tabular-nums;
   }
 
   .stat-caption {
-    @apply mt-1 text-xs text-gray-400;
+    @apply mt-0.5 text-xs text-gray-400;
   }
 
   /* Surfaces -------------------------------------------------------- */
   .card {
     background: white;
     border: 1px solid var(--sand);
-    @apply rounded-2xl shadow-[0_1px_2px_rgba(17,24,39,0.04),0_1px_3px_rgba(17,24,39,0.06)];
+    @apply rounded-xl shadow-[0_1px_2px_rgba(17,24,39,0.04),0_1px_3px_rgba(17,24,39,0.06)];
   }
 
   .card-header {
-    @apply px-4 sm:px-5 py-3 sm:py-3.5 text-sm font-medium text-gray-500 border-b border-gray-100;
+    @apply px-3 py-2 text-sm font-medium text-gray-500 border-b border-gray-100;
   }
 
   .card-hover {
@@ -203,9 +203,9 @@
   }
 
   .nav-link {
-    @apply flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/[0.06] hover:text-white;
+    @apply flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/[0.06] hover:text-white;
     /* Mobile: bigger touch target */
-    min-height: 40px;
+    min-height: 36px;
   }
 
   .nav-link-active {

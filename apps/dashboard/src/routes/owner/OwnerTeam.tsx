@@ -173,16 +173,16 @@ export default function OwnerTeam() {
 
   return (
     <DashboardLayout>
-      <div className="mb-6">
+      <div className="mb-3">
         <h1 className="page-title">Team</h1>
         <p className="page-sub mt-1">Your staff members — connected to branches. Stock allocated to a branch shows on that staff member's POS.</p>
       </div>
 
       {/* ── Quick actions ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <Link
           to="/owner/managers"
-          className="bg-white border border-gray-200 rounded-2xl p-5 flex items-center gap-4 hover:border-gray-900 transition-all"
+          className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-3 hover:border-gray-900 transition-all"
         >
           <span className="text-3xl">👔</span>
           <div>
@@ -193,7 +193,7 @@ export default function OwnerTeam() {
       </div>
 
       {/* ── Stats row ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
         <div className="card p-4">
           <p className="stat-label">Staff members</p>
           <p className="stat-value">{staff.length}</p>
@@ -212,7 +212,7 @@ export default function OwnerTeam() {
       {!showAdd ? (
         <button
           onClick={() => setShowAdd(true)}
-          className="w-full card p-4 flex items-center gap-3 hover:border-gray-900 transition-all mb-6"
+          className="w-full card p-4 flex items-center gap-3 hover:border-gray-900 transition-all mb-3"
         >
           <span className="h-10 w-10 rounded-xl bg-gray-900 text-white grid place-items-center text-lg">+</span>
           <div className="text-left">
@@ -221,7 +221,7 @@ export default function OwnerTeam() {
           </div>
         </button>
       ) : (
-        <form onSubmit={handleAdd} className="card p-5 space-y-3 mb-6">
+        <form onSubmit={handleAdd} className="card p-4 space-y-2 mb-3">
           <div className="flex items-center justify-between mb-1">
             <p className="text-sm font-semibold text-gray-900">New staff member</p>
             <button type="button" onClick={() => { setShowAdd(false); setError(null); }} className="text-xs text-gray-400 hover:text-gray-600">✕ Cancel</button>
@@ -252,7 +252,7 @@ export default function OwnerTeam() {
       )}
 
       {/* ── Staff list ── */}
-      <div className="card overflow-hidden mb-6">
+      <div className="card overflow-hidden mb-3">
         <div className="card-header flex items-center justify-between">
           <span>Staff ({staff.length})</span>
           <Link to="/manager/staff" className="text-xs text-gray-500 hover:text-gray-900">Advanced view →</Link>
@@ -272,7 +272,7 @@ export default function OwnerTeam() {
               return (
                 <li key={s.id} className="px-5 py-4">
                   {isEditing ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                           <label className="label">Name</label>
@@ -358,7 +358,7 @@ export default function OwnerTeam() {
       {(created || resendUrl) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => { setCreated(null); closeResend(); }} />
-          <div className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-3">
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-4 space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-900">
                 {created ? `Account created for ${created.name}` : `Activation link for ${resendName}`}

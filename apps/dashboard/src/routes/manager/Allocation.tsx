@@ -133,13 +133,13 @@ export default function Allocation() {
   return (
     <DashboardLayout>
       <BackButton />
-      <div className="flex items-center gap-2 mb-6">
+      <div className="flex items-center gap-2 mb-3">
         <AdinkraAllocate size={22} className="text-gray-600" />
         <h1 className="page-title mb-0">Stock allocation</h1>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 max-w-5xl">
-        <form onSubmit={handleDistribute} className="card p-6 space-y-4 h-fit">
+      <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
+        <form onSubmit={handleDistribute} className="card p-4 space-y-2 h-fit">
           {/* Product selection */}
           <div>
             <label className="label">Product</label>
@@ -164,7 +164,7 @@ export default function Allocation() {
 
           {/* Distributor & purchase price — visual stepper flow */}
           {selected && (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {/* Distributor */}
               <div>
                 <label className="label">Distributor</label>
@@ -338,7 +338,7 @@ export default function Allocation() {
         <div className="card overflow-hidden">
           <p className="card-header">Recent allocations</p>
           {recent.length === 0 ? (
-            <p className="p-6 text-gray-500 text-sm">Nothing allocated yet.</p>
+            <p className="p-4 text-gray-500 text-sm">Nothing allocated yet.</p>
           ) : (
             <ul className="divide-y">
               {recent.map((r) => (

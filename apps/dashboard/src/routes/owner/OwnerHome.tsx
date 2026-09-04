@@ -178,7 +178,7 @@ export default function OwnerHome() {
   return (
     <DashboardLayout>
       {/* Ghana Welcome Banner with Nkrumah branding */}
-      <div className="mb-6 rounded-2xl p-6 text-white relative overflow-hidden" style={{background: 'linear-gradient(135deg, var(--ghana-red) 0%, var(--kente-maroon) 100%)'}}>
+      <div className="mb-3 rounded-2xl p-4 text-white relative overflow-hidden" style={{background: 'linear-gradient(135deg, var(--ghana-red) 0%, var(--kente-maroon) 100%)'}}>
         <div className="absolute top-0 right-0 opacity-10">
           <GyeNyame size={120} color="white" />
         </div>
@@ -190,10 +190,10 @@ export default function OwnerHome() {
           </div>
         </div>
       </div>
-      <GhanaFlagStripe height={6} showStar className="mb-6 rounded-full" />
+      <GhanaFlagStripe height={6} showStar className="mb-3 rounded-full" />
 
       {/* Period selector — Ghana gold active */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-3">
         {[
           { key: 'today', label: '📅 Today' },
           { key: 'week', label: '📊 This Week' },
@@ -217,7 +217,7 @@ export default function OwnerHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           TODAY'S SNAPSHOT — Big numbers, easy to read
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
         {/* Today's Sales */}
         <div className="text-white rounded-2xl p-5" style={{background: 'var(--ghana-black)'}}>
           <p className="text-xs font-medium uppercase tracking-wide" style={{color: 'var(--ghana-gold)'}}>★ Sales Today</p>
@@ -228,7 +228,7 @@ export default function OwnerHome() {
         </div>
 
         {/* Profit Today */}
-        <div className={`rounded-2xl p-5 ${todayProfit >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+        <div className={`rounded-2xl p-4 ${todayProfit >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Profit Today</p>
           <p className={`text-3xl font-bold tabular-nums mt-2 ${todayProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
             {formatGHS(todayProfit)}
@@ -239,7 +239,7 @@ export default function OwnerHome() {
         </div>
 
         {/* Average Sale */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-200">
+        <div className="bg-white rounded-2xl p-4 border border-gray-200">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Avg. Sale</p>
           <p className="text-3xl font-bold text-gray-900 tabular-nums mt-2">{formatGHS(avgToday)}</p>
           <div className="mt-2">
@@ -248,7 +248,7 @@ export default function OwnerHome() {
         </div>
 
         {/* Money Owed to You */}
-        <div className={`rounded-2xl p-5 ${totalOwedToYou > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-white border border-gray-200'}`}>
+        <div className={`rounded-2xl p-4 ${totalOwedToYou > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-white border border-gray-200'}`}>
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Owed to You</p>
           <p className={`text-3xl font-bold tabular-nums mt-2 ${totalOwedToYou > 0 ? 'text-amber-700' : 'text-gray-900'}`}>
             {formatGHS(totalOwedToYou)}
@@ -259,7 +259,7 @@ export default function OwnerHome() {
         </div>
 
         {/* Stock Value */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-200">
+        <div className="bg-white rounded-2xl p-4 border border-gray-200">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Stock Value</p>
           <p className="text-3xl font-bold text-gray-900 tabular-nums mt-2">{formatGHS(stockAtCost)}</p>
           <p className="text-xs text-gray-500 mt-2">
@@ -277,30 +277,30 @@ export default function OwnerHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           PERIOD SUMMARY — Bigger section with more detail
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
         {/* Period overview */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
           <h2 className="text-base font-semibold text-gray-900 mb-4">
             {period === 'today' ? "Today's" : period === 'week' ? "This Week's" : "This Month's"} Summary
           </h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between py-2 border-b border-gray-100">
               <span className="text-sm text-gray-600">💰 Total Sales</span>
               <span className="text-lg font-bold tabular-nums text-gray-900">{formatGHS(periodRevenue)}</span>
             </div>
-            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between py-2 border-b border-gray-100">
               <span className="text-sm text-gray-600">📈 Profit</span>
               <span className={`text-lg font-bold tabular-nums ${periodProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                 {formatGHS(periodProfit)}
               </span>
             </div>
-            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between py-2 border-b border-gray-100">
               <span className="text-sm text-gray-600">📊 Profit Margin</span>
               <span className={`text-lg font-bold tabular-nums ${profitMargin >= 20 ? 'text-green-700' : profitMargin >= 5 ? 'text-amber-700' : 'text-red-700'}`}>
                 {profitMargin.toFixed(1)}%
               </span>
             </div>
-            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between py-2 border-b border-gray-100">
               <span className="text-sm text-gray-600">🧾 Number of Sales</span>
               <span className="text-lg font-bold tabular-nums text-gray-900">{periodTransactions}</span>
             </div>
@@ -312,7 +312,7 @@ export default function OwnerHome() {
         </div>
 
         {/* Branch performance — tube visual */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
           <div className="flex items-center gap-2 mb-4">
             <Funtunfunefu size={18} className="text-gray-400" />
             <h2 className="text-base font-semibold text-gray-900">Store Performance</h2>
@@ -346,15 +346,15 @@ export default function OwnerHome() {
           TOP PRODUCTS — Simple list
           ═══════════════════════════════════════════════════════════════════ */}
       {topProducts.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-8">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
           <h2 className="text-base font-semibold text-gray-900 mb-1">Top Selling Products</h2>
           <p className="text-xs text-gray-400 mb-4">What's making you money</p>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {topProducts.map((p, i) => {
               const margin = p.revenue > 0 ? ((p.revenue - p.cost) / p.revenue) * 100 : 0;
               const profit = p.revenue - p.cost;
               return (
-                <div key={p.name} className="flex items-center gap-3 py-3 border-b border-gray-100 last:border-0">
+                <div key={p.name} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
                   <span className="text-lg w-8 text-center font-bold text-gray-400">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900">{p.name}</p>
@@ -376,7 +376,7 @@ export default function OwnerHome() {
       {/* ═══════════════════════════════════════════════════════════════════
           QUICK LINKS — Simple navigation
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
         {[
           { to: '/owner/stores', icon: <Nsoromma size={28} color="white" />, label: '🏪 Stores', bg: 'var(--ghana-green)' },
           { to: '/owner/money', icon: <IconCurrency size={28} />, label: '💰 Sika (Money)', bg: 'var(--ghana-gold)' },

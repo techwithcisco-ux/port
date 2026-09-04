@@ -39,13 +39,13 @@ export default function ManagerStock() {
 
   return (
     <DashboardLayout>
-      <div className="mb-6">
+      <div className="mb-3">
         <h1 className="text-2xl font-bold text-gray-900">Stock</h1>
         <p className="text-sm text-gray-500 mt-1">Manage inventory, allocations, and stock levels.</p>
       </div>
 
       {/* Tab selector */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-3">
         {([
           { key: 'overview', label: 'Overview' },
           { key: 'allocation', label: 'Allocate' },
@@ -68,22 +68,22 @@ export default function ManagerStock() {
       {tab === 'overview' && (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-2xl p-5 border border-gray-200">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <div className="bg-white rounded-2xl p-4 border border-gray-200">
               <p className="text-xs text-gray-500 uppercase">Products</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">{products.length}</p>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-gray-200">
+            <div className="bg-white rounded-2xl p-4 border border-gray-200">
               <p className="text-xs text-gray-500 uppercase">Branches</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">{branches.length}</p>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-gray-200">
+            <div className="bg-white rounded-2xl p-4 border border-gray-200">
               <p className="text-xs text-gray-500 uppercase">Total Allocated</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
                 {allocations.reduce((s, a) => s + Number(a.retail_quantity_equivalent), 0)}
               </p>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-gray-200">
+            <div className="bg-white rounded-2xl p-4 border border-gray-200">
               <p className="text-xs text-gray-500 uppercase">Stock Value</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">
                 {formatGHS(products.reduce((total, p) => {
@@ -125,7 +125,7 @@ export default function ManagerStock() {
       )}
 
       {tab === 'allocation' && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Stock Allocation</h2>
           <p className="text-sm text-gray-500 mb-4">Move stock from your store to branches.</p>
           <Link
@@ -138,7 +138,7 @@ export default function ManagerStock() {
       )}
 
       {tab === 'balance' && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Stock Balance</h2>
           <p className="text-sm text-gray-500 mb-4">See detailed stock levels per product and branch.</p>
           <Link

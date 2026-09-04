@@ -186,7 +186,7 @@ export default function TradingAccount() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 max-w-4xl lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-3 mb-3 max-w-4xl lg:grid-cols-3">
         <div className="card p-5">
           <p className="stat-label">Sales Revenue</p>
           <p className="stat-value text-blue-700">{loading ? '…' : formatGHS(totals.salesRevenue)}</p>
@@ -205,9 +205,9 @@ export default function TradingAccount() {
       </div>
 
       {/* Trading Account Statement */}
-      <div className="card overflow-hidden max-w-4xl mb-6">
+      <div className="card overflow-hidden max-w-4xl mb-3">
         <p className="card-header">Trading Account Statement</p>
-        <div className="px-5 py-4 space-y-2 text-sm">
+        <div className="px-5 py-2 space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-gray-600">Opening Stock (at cost)</span>
             <span className="font-medium tabular-nums">{formatGHS(totals.openingStockValue)}</span>
@@ -250,9 +250,9 @@ export default function TradingAccount() {
       <div className="card overflow-hidden max-w-5xl">
         <p className="card-header">Product-wise trading details</p>
         {loading ? (
-          <p className="p-6 text-gray-500 text-sm">Loading…</p>
+          <p className="p-4 text-gray-500 text-sm">Loading…</p>
         ) : tradingData.length === 0 ? (
-          <p className="p-6 text-gray-500 text-sm">No trading activity in this period.</p>
+          <p className="p-4 text-gray-500 text-sm">No trading activity in this period.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

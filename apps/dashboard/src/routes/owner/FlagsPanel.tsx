@@ -116,7 +116,7 @@ export default function FlagsPanel() {
             Retail sales priced outside the 5% consistency window (flag written by the DB trigger)
           </p>
           {filteredFlagged.length === 0 ? (
-            <p className="p-6 text-gray-600 text-sm">No pricing anomalies on file.</p>
+            <p className="p-4 text-gray-600 text-sm">No pricing anomalies on file.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-left">
@@ -154,7 +154,7 @@ export default function FlagsPanel() {
             Server-vs-device clock gap over 10 min — offline sync has the same signature, so this stays for human judgment
           </p>
           {filteredBackdated.length === 0 ? (
-            <p className="p-6 text-gray-600 text-sm">No timing mismatches recorded.</p>
+            <p className="p-4 text-gray-600 text-sm">No timing mismatches recorded.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-left">
@@ -186,7 +186,7 @@ export default function FlagsPanel() {
             Actors with {OVERRIDE_THRESHOLD}+ flagged sales — the threshold, not the person, decides
           </p>
           {filteredActors.length === 0 ? (
-            <p className="p-6 text-gray-600 text-sm">Nobody is repeatedly pricing outside the window.</p>
+            <p className="p-4 text-gray-600 text-sm">Nobody is repeatedly pricing outside the window.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-left">
@@ -214,7 +214,7 @@ export default function FlagsPanel() {
             Allocations in the last {WINDOW_DAYS} days with no matching sale recorded for that branch+product
           </p>
           {filteredFrozen.length === 0 ? (
-            <p className="p-6 text-gray-600 text-sm">Everything allocated in the window looks accounted for.</p>
+            <p className="p-4 text-gray-600 text-sm">Everything allocated in the window looks accounted for.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-left">

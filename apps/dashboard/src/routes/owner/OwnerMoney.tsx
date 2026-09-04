@@ -82,13 +82,13 @@ export default function OwnerMoney() {
 
   return (
     <DashboardLayout>
-      <div className="mb-6">
+      <div className="mb-3">
         <h1 className="text-2xl font-bold text-gray-900">Money</h1>
         <p className="text-sm text-gray-500 mt-1">This month's financial overview.</p>
       </div>
 
       {/* Tab selector */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-3">
         {([
           { key: 'overview', label: 'Overview' },
           { key: 'pnl', label: 'Profit & Loss' },
@@ -111,25 +111,25 @@ export default function OwnerMoney() {
       {tab === 'overview' && (
         <>
           {/* Big numbers */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <div className="bg-gray-900 text-white rounded-2xl p-5">
               <p className="text-xs font-medium text-gray-400 uppercase">Revenue</p>
               <p className="text-3xl font-bold tabular-nums mt-2">{formatGHS(totalRevenue)}</p>
               <p className="text-xs text-gray-400 mt-2">{transactions} sales</p>
             </div>
-            <div className={`rounded-2xl p-5 ${grossProfit >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+            <div className={`rounded-2xl p-4 ${grossProfit >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
               <p className="text-xs font-medium text-gray-500 uppercase">Gross Profit</p>
               <p className={`text-3xl font-bold tabular-nums mt-2 ${grossProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                 {formatGHS(grossProfit)}
               </p>
               <p className="text-xs text-gray-500 mt-2">{profitMargin.toFixed(1)}% margin</p>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-gray-200">
+            <div className="bg-white rounded-2xl p-4 border border-gray-200">
               <p className="text-xs font-medium text-gray-500 uppercase">Cost of Goods</p>
               <p className="text-3xl font-bold text-gray-900 tabular-nums mt-2">{formatGHS(totalCost)}</p>
               <p className="text-xs text-gray-500 mt-2">what you paid for stock</p>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-gray-200">
+            <div className="bg-white rounded-2xl p-4 border border-gray-200">
               <p className="text-xs font-medium text-gray-500 uppercase">Stock Value</p>
               <p className="text-3xl font-bold text-gray-900 tabular-nums mt-2">{formatGHS(stockValue)}</p>
               <p className="text-xs text-gray-500 mt-2">inventory at cost</p>
@@ -138,10 +138,10 @@ export default function OwnerMoney() {
 
           {/* Product breakdown */}
           {topProducts.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-8">
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4">
               <h2 className="text-base font-semibold text-gray-900 mb-1">Revenue by Product</h2>
               <p className="text-xs text-gray-400 mb-4">What's making you money this month</p>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {topProducts.map((p, i) => {
                   const profit = p.revenue - p.cost;
                   const margin = p.revenue > 0 ? (profit / p.revenue) * 100 : 0;
@@ -177,18 +177,18 @@ export default function OwnerMoney() {
       )}
 
       {tab === 'pnl' && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Profit & Loss — This Month</h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between py-2 border-b border-gray-100">
               <span className="text-sm text-gray-600">💰 Sales Revenue</span>
               <span className="text-lg font-bold tabular-nums text-gray-900">{formatGHS(totalRevenue)}</span>
             </div>
-            <div className="flex items-center justify-between py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between py-2 border-b border-gray-100">
               <span className="text-sm text-gray-600">📦 Cost of Goods Sold</span>
               <span className="text-lg font-bold tabular-nums text-red-700">-{formatGHS(totalCost)}</span>
             </div>
-            <div className="flex items-center justify-between py-3 border-b border-gray-200">
+            <div className="flex items-center justify-between py-2 border-b border-gray-200">
               <span className="text-sm font-semibold text-gray-900">📈 Gross Profit</span>
               <span className={`text-xl font-bold tabular-nums ${grossProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                 {formatGHS(grossProfit)}
@@ -222,7 +222,7 @@ export default function OwnerMoney() {
       {tab === 'overview' && (
         <>
           {/* Quick links to new pages */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
             <Link
               to="/manager/documents"
               className="bg-white border border-gray-200 rounded-2xl p-4 text-center hover:border-gray-900 transition-all"
@@ -252,9 +252,9 @@ export default function OwnerMoney() {
       )}
 
       {tab === 'debts' && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Debts & Creditors</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
               <p className="text-sm font-medium text-amber-700">Money Owed to You</p>
               <p className="text-2xl font-bold tabular-nums text-amber-800 mt-2">GHS 0.00</p>

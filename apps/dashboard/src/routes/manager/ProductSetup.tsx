@@ -147,13 +147,13 @@ export default function ProductSetup() {
         <AdinkraStock size={22} className="text-emerald-600" />
         <h1 className="page-title mb-0">Product setup</h1>
       </div>
-      <p className="page-sub mb-6">
+      <p className="page-sub mb-3">
         Add a product with its variants — e.g. Sugar sold as a cup, a bag, or a sachet. The first variant is the
         base unit stock is counted in.
       </p>
 
-      <div className="grid gap-6 lg:grid-cols-2 max-w-5xl">
-        <form onSubmit={handleSubmit} className="card p-6 space-y-4 h-fit">
+      <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
+        <form onSubmit={handleSubmit} className="card p-4 space-y-2 h-fit">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Product name</label>
@@ -255,7 +255,7 @@ export default function ProductSetup() {
         <div className="card overflow-hidden">
           <p className="card-header">Products ({products.length})</p>
           {products.length === 0 ? (
-            <p className="p-6 text-gray-500 text-sm">
+            <p className="p-4 text-gray-500 text-sm">
               No products yet. Add your first one here so intake, allocation and the staff POS
               have something to work from.
             </p>

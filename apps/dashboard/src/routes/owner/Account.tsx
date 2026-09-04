@@ -139,7 +139,7 @@ export default function Account() {
     <DashboardLayout>
       <BackButton />
       <h1 className="page-title mb-1">Account</h1>
-      <p className="page-sub mb-6">
+      <p className="page-sub mb-3">
         Your business information from onboarding. Edit any details here.
       </p>
 
@@ -149,7 +149,7 @@ export default function Account() {
 
       <div className="max-w-2xl space-y-6">
         {/* ── Owner Info ── */}
-        <div className="card p-6">
+        <div className="card p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-gray-900">Owner Information</h2>
             {!editing && (
@@ -159,7 +159,7 @@ export default function Account() {
             )}
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-2">
             <div>
               <label className="label">Your name</label>
               {editing ? (
@@ -180,10 +180,10 @@ export default function Account() {
         </div>
 
         {/* ── Business Info ── */}
-        <div className="card p-6">
+        <div className="card p-4">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Business Information</h2>
 
-          <div className="space-y-4">
+          <div className="space-y-2">
             <div>
               <label className="label">Business name</label>
               {editing ? (
@@ -238,7 +238,7 @@ export default function Account() {
             <div>
               <label className="label">What you sell ({bizCategories.length} selected)</label>
               {editing ? (
-                <div className="max-h-[240px] overflow-y-auto rounded-xl border border-gray-200 p-3 space-y-3">
+                <div className="max-h-[240px] overflow-y-auto rounded-xl border border-gray-200 p-3 space-y-2">
                   {CATEGORIES.map((cat) => (
                     <div key={cat.label}>
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">{cat.label}</p>

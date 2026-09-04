@@ -111,10 +111,10 @@ export default function ProfitLoss() {
         { color: 'bg-orange-500', label: 'Cost (COGS)' },
         { color: 'bg-green-500', label: 'Profit' },
         { color: 'bg-red-500', label: 'Expenses / Loss' },
-      ]} className="mb-6" />
+      ]} className="mb-3" />
 
       {/* ── KEY METRICS ── */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 max-w-5xl lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-3 mb-3 max-w-5xl lg:grid-cols-4">
         <ColorStatCard label="Revenue (Sales)" value={loading ? '…' : formatGHS(revenue)} color="blue" icon="💰" />
         <ColorStatCard label="Cost of Goods Sold" value={loading ? '…' : formatGHS(cost)} color="orange" icon="📦" />
         <ColorStatCard label="Gross Profit" value={loading ? '…' : formatGHS(grossProfit)} color={grossProfit >= 0 ? 'green' : 'red'} icon={grossProfit >= 0 ? '📈' : '📉'} sublabel={`${grossMargin}% margin`} />
@@ -122,7 +122,7 @@ export default function ProfitLoss() {
       </div>
 
       {/* ── PROFIT FUNNEL ── */}
-      <div className="card p-6 mb-6 max-w-5xl">
+      <div className="card p-4 mb-3 max-w-5xl">
         <p className="text-sm font-semibold text-gray-700 mb-1">Profit Funnel</p>
         <p className="text-xs text-gray-400 mb-4">Revenue → after COGS → after expenses = your real profit</p>
         <SalesFunnel
@@ -135,7 +135,7 @@ export default function ProfitLoss() {
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 mb-6 max-w-5xl">
+      <div className="grid gap-3 lg:grid-cols-2 mb-3 max-w-5xl">
         {/* ── Revenue by product ── */}
         <div className="card overflow-hidden">
           <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
@@ -182,9 +182,9 @@ export default function ProfitLoss() {
             <StatusBadge color="red">{formatGHS(totalExpenseAmount)} total</StatusBadge>
           </div>
           {expenseByCategory.length === 0 ? (
-            <p className="p-6 text-gray-500 text-sm">No expenses in this period.</p>
+            <p className="p-4 text-gray-500 text-sm">No expenses in this period.</p>
           ) : (
-            <div className="p-5 space-y-3">
+            <div className="p-4 space-y-2">
               {expenseByCategory.map((e) => (
                 <div key={e.category}>
                   <div className="flex justify-between items-center mb-1">
@@ -204,14 +204,14 @@ export default function ProfitLoss() {
       </div>
 
       {/* ── P&L SUMMARY ── */}
-      <div className="card overflow-hidden max-w-5xl mb-6">
+      <div className="card overflow-hidden max-w-5xl mb-3">
         <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-semibold text-gray-700">P&L Summary</p>
           <StatusBadge color={netProfit >= 0 ? 'green' : 'red'} pulse={netProfit < 0}>
             {netProfit >= 0 ? 'Profitable' : 'Making a loss'}
           </StatusBadge>
         </div>
-        <div className="px-5 py-4 space-y-3 text-sm">
+        <div className="px-5 py-2 space-y-2 text-sm">
           <div className="flex justify-between items-center">
             <span className="text-gray-600">Total sales revenue</span>
             <span className="font-medium tabular-nums text-blue-700">{formatGHS(revenue)}</span>
@@ -247,9 +247,9 @@ export default function ProfitLoss() {
 
       {/* ── BY BRANCH ── */}
       {!loading && analytics.branches.length > 0 && (
-        <div className="card p-6 max-w-5xl">
+        <div className="card p-4 max-w-5xl">
           <p className="text-sm font-semibold text-gray-700 mb-4">Performance by branch</p>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {analytics.branches.map((b) => (
               <div key={b.branchId} className="flex items-center gap-4">
                 <span className="text-sm font-medium w-24 shrink-0">{b.branchName}</span>

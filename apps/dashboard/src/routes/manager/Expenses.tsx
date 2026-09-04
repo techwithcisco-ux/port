@@ -205,7 +205,7 @@ export default function Expenses() {
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 max-w-3xl">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3 mb-3 max-w-3xl">
         <div className="card p-5">
           <p className="stat-label">Total paid</p>
           <p className="stat-value">{loading ? '…' : formatGHS(summary.totalExpenses)}</p>
@@ -222,7 +222,7 @@ export default function Expenses() {
 
       {/* Create form */}
       {showForm && (
-        <form onSubmit={handleCreate} className="card p-6 max-w-md space-y-4 mb-6">
+        <form onSubmit={handleCreate} className="card p-4 max-w-md space-y-2 mb-3">
           <div>
             <label className="label">Category</label>
             <select

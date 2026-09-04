@@ -65,8 +65,8 @@ export default function Signup() {
           <div className="flex-1" style={{ background: '#006B3F' }} />
         </div>
 
-        <div className="bg-white p-6 sm:p-8">
-          <div className="text-center mb-6">
+        <div className="bg-white p-4 sm:p-8">
+          <div className="text-center mb-3">
             <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl mb-3" style={{ background: '#FCD116' }}>
               <span className="text-lg font-bold" style={{ color: '#1a1a2e' }}>★</span>
             </div>
@@ -74,7 +74,7 @@ export default function Signup() {
             <p className="text-sm text-gray-500 mt-1">Akwaaba! Set up your shop on BranchPort.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-2">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
               <input type="text" required autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Kwame Asante" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900" />

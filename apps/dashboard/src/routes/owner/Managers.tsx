@@ -248,13 +248,13 @@ export default function Managers() {
     <DashboardLayout>
       <BackButton />
       <h1 className="page-title mb-1">Assign managers</h1>
-      <p className="page-sub mb-6">
+      <p className="page-sub mb-3">
         Add team members as managers so they can run the dashboard, POS and supplier ledger on your behalf.
       </p>
 
       {/* ── Self-assign card ── */}
       {!isSelfAssigned && (
-        <div className="card p-5 border-l-4 border-l-purple-500 mb-6 max-w-5xl bg-purple-50/50">
+        <div className="card p-4 border-l-4 border-l-purple-500 mb-3 max-w-5xl bg-purple-50/50">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-semibold text-gray-900">Run the store yourself?</p>
@@ -276,14 +276,14 @@ export default function Managers() {
       )}
 
       {isSelfAssigned && (
-        <div className="card p-4 border-l-4 border-l-green-500 mb-6 max-w-5xl bg-green-50/50">
+        <div className="card p-4 border-l-4 border-l-green-500 mb-3 max-w-5xl bg-green-50/50">
           <p className="text-sm font-medium text-green-800">✓ You are assigned as a manager — you have full access to all features.</p>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2 max-w-5xl">
+      <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
         {/* ── Create new manager ─────────────────────── */}
-        <div className="card p-6 space-y-4 h-fit">
+        <div className="card p-4 space-y-2 h-fit">
           <p className="text-sm font-medium text-gray-700">Create a new manager</p>
           <p className="text-sm text-gray-500">
             Creates an account with an auto-generated password. Show the password to the manager once — they'll need it to log in.
@@ -361,7 +361,7 @@ export default function Managers() {
         </div>
 
         {/* ── Assign existing member ─────────────────── */}
-        <div className="card p-6 space-y-4 h-fit">
+        <div className="card p-4 space-y-2 h-fit">
           <p className="text-sm font-medium text-gray-700">Add an existing member</p>
           <p className="text-sm text-gray-500">
             The person must already have a BranchPort account — find them by phone number.
@@ -412,13 +412,13 @@ export default function Managers() {
         <div className="card overflow-hidden h-fit lg:col-span-2">
           <p className="card-header">Your managers ({assignedManagers.length})</p>
           {assignedManagers.length === 0 ? (
-            <p className="p-6 text-gray-500 text-sm">No managers assigned yet. Create or add one to get started.</p>
+            <p className="p-4 text-gray-500 text-sm">No managers assigned yet. Create or add one to get started.</p>
           ) : (
             <ul className="divide-y">
               {assignedManagers.map((manager) => {
                 const isSelf = manager.manager_user_id === profile?.id;
                 return (
-                  <li key={manager.manager_user_id} className="px-5 py-4 flex items-center justify-between gap-4">
+                  <li key={manager.manager_user_id} className="px-5 py-2 flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium truncate">{manager.manager_name}</p>
@@ -449,7 +449,7 @@ export default function Managers() {
         </div>
       </div>
 
-      <div className="mt-8 max-w-5xl rounded-2xl border border-gray-200/80 bg-gray-50 p-6">
+      <div className="mt-8 max-w-5xl rounded-2xl border border-gray-200/80 bg-gray-50 p-4">
         <p className="text-sm font-medium text-gray-700 mb-2">How it works</p>
         <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
           <li>You can assign yourself as a manager to get full POS and stock allocation access.</li>

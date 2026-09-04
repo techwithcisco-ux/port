@@ -58,7 +58,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center px-4 py-10 page-enter" style={{background: 'var(--cream)'}}>
       <div className="w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 rounded-3xl overflow-hidden shadow-[0_12px_40px_rgba(17,24,39,0.12),0_2px_8px_rgba(17,24,39,0.06)] card-enter">
         <div className="ghana-stripe md:col-span-2" style={{gridColumn: '1 / -1'}}><div className="red" /><div className="gold" /><div className="green" /></div>
-        <div className="p-6 sm:p-8 flex flex-col justify-between" style={{background: 'var(--ghana-black)'}}>
+        <div className="p-4 sm:p-8 flex flex-col justify-between" style={{background: 'var(--ghana-black)'}}>
           <div>
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-white/10 ring-1 ring-white/10 grid place-items-center">
@@ -80,7 +80,7 @@ export default function Login() {
             </p>
           </div>
 
-          <ul className="mt-10 space-y-3">
+          <ul className="mt-10 space-y-2">
             {features.map((f) => (
               <li key={f.label} className="flex items-start gap-2.5">
                 <span className="mt-0.5 h-6 w-6 shrink-0 rounded-lg bg-white/10 grid place-items-center">
@@ -94,8 +94,8 @@ export default function Login() {
           </ul>
         </div>
 
-        <div className="bg-white p-6 sm:p-8 flex flex-col justify-center">
-          <div className="text-center mb-6">
+        <div className="bg-white p-4 sm:p-8 flex flex-col justify-center">
+          <div className="text-center mb-3">
             <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl mb-3" style={{background: 'var(--ghana-gold)'}}>
               <span className="text-lg font-bold" style={{color: 'var(--ghana-black)'}}>★</span>
             </div>
@@ -103,7 +103,7 @@ export default function Login() {
             <p className="text-xs text-gray-400 mt-1">Phone number and password</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-2">
             <div>
               <label className="label">Phone number</label>
               <div className="relative">

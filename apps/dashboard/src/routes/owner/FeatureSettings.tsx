@@ -127,7 +127,7 @@ export default function FeatureSettings() {
         })}
 
         {/* Custom features hint */}
-        <div className="card p-6 bg-gray-50 border-dashed">
+        <div className="card p-4 bg-gray-50 border-dashed">
           <p className="text-sm font-medium text-gray-700 mb-1">Need a custom feature?</p>
           <p className="text-xs text-gray-500">
             Every feature above can be toggled individually. You can also create custom expense categories,

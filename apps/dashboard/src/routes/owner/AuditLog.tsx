@@ -104,17 +104,17 @@ export default function AuditLog() {
         <AdinkraHistory size={14} className="text-gray-400 shrink-0" />
         Every action, every actor, every branch — nothing is erased, nothing is rewritten.
       </p>
-      <p className="text-[11px] text-gray-400 mb-6 font-mono">
+      <p className="text-[11px] text-gray-400 mb-3 font-mono">
         Append-only log · Corrections are new rows · Timestamps are immutable
       </p>
 
       {/* Filters — icon-first, compact */}
-      <div className="card p-4 mb-6">
+      <div className="card p-4 mb-3">
         <div className="flex items-center gap-2 mb-3">
           <IconFilter size={14} className="text-gray-400" />
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filters</span>
         </div>
-        <div className="flex flex-wrap gap-4 items-end">
+        <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[16rem]">
             <label className="label">Search everything</label>
             <div className="relative">
@@ -172,9 +172,9 @@ export default function AuditLog() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <p className="p-6 text-gray-500 text-sm">Loading…</p>
+          <p className="p-4 text-gray-500 text-sm">Loading…</p>
         ) : visibleEvents.length === 0 ? (
-          <p className="p-6 text-gray-500 text-sm">No events match the current filters or search.</p>
+          <p className="p-4 text-gray-500 text-sm">No events match the current filters or search.</p>
         ) : (
           <ul className="divide-y">
             {visibleEvents.map((e) => {
@@ -182,7 +182,7 @@ export default function AuditLog() {
               const isOpen = expanded === e.id;
               return (
                 <li key={e.id} className="px-4 py-3">
-                  <button onClick={() => setExpanded(isOpen ? null : e.id)} className="w-full text-left flex items-start justify-between gap-4 hover:bg-gray-50 rounded -m-1 p-1">
+                  <button onClick={() => setExpanded(isOpen ? null : e.id)} className="w-full text-left flex items-start justify-between gap-3 hover:bg-gray-50 rounded -m-1 p-1">
                     <div className="min-w-0">
                       <p className="text-sm text-gray-800">
                         {humanizeEvent(e, ctx)}

@@ -62,7 +62,7 @@ function NavLinks({ mode, onNavigate }: { mode: ViewMode; onNavigate?: () => voi
     <>
       {showOwnerSection && (
         <>
-          <div className="px-3 pb-1 pt-6 flex items-center gap-2">
+          <div className="px-3 pb-1 pt-3 flex items-center gap-2">
             <Dwennimmen size={14} className="text-amber-400/70" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">Okradi / Owner</p>
           </div>
@@ -79,7 +79,7 @@ function NavLinks({ mode, onNavigate }: { mode: ViewMode; onNavigate?: () => voi
           ))}
         </>
       )}
-      <div className="px-3 pb-1 pt-6 flex items-center gap-2">
+      <div className="px-3 pb-1 pt-3 flex items-center gap-2">
         <Aya size={14} className="text-emerald-400/70" />
         <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">{showOwnerSection ? 'Dwa (Operations)' : 'Tem (Manage)'}</p>
       </div>
@@ -222,7 +222,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             aria-hidden
           />
           <div className="absolute inset-y-0 left-0 w-[80%] max-w-[19rem] bg-gray-900 text-gray-300 flex flex-col shadow-2xl scroll-dark" style={{animation: 'slide-in-left 0.25s cubic-bezier(0.22, 1, 0.36, 1)'}}>
-            <div className="px-4 py-4 flex items-center justify-between border-b border-gray-800">
+            <div className="px-3 py-2.5 flex items-center justify-between border-b border-gray-800">
               <BrandMark small />
               <button
                 onClick={closeNav}
@@ -246,7 +246,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Desktop sidebar — hidden below lg */}
       <aside className="hidden lg:flex w-60 text-gray-300 flex-col sticky top-0 h-screen scroll-dark" style={{background: 'var(--ghana-black)', borderRight: '3px solid var(--ghana-gold)'}}>
         <div className="ghana-stripe"><div className="red" /><div className="gold" /><div className="green" /></div>
-        <div className="px-4 py-5">
+        <div className="px-3 py-3">
           <BrandMark />
         </div>
 
@@ -259,7 +259,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="flex-1 min-w-0">
-        <div className="px-4 py-6 sm:px-6 lg:px-12 lg:py-10 page-enter">{children}</div>
+        <div className="px-3 py-3 sm:px-5 sm:py-4 lg:px-8 lg:py-5 page-enter max-w-6xl">{children}</div>
       </main>
     </div>
   );

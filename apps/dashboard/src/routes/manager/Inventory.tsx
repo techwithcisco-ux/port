@@ -60,9 +60,9 @@ export default function Inventory() {
   return (
     <DashboardLayout>
       <BackButton />
-      <h1 className="page-title mb-6">Inventory intake</h1>
+      <h1 className="page-title mb-3">Inventory intake</h1>
 
-      <form onSubmit={handleSubmit} className="card p-6 max-w-md space-y-4 h-fit">
+      <form onSubmit={handleSubmit} className="card p-4 max-w-md space-y-2 h-fit">
         <div>
           <label className="label">Supplier</label>
           <select

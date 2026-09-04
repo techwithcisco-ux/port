@@ -67,7 +67,7 @@ export default function MarketIntelligence() {
     <DashboardLayout>
       <div className="max-w-6xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="page-title">Market Intelligence</h1>
             <p className="page-sub">
@@ -83,7 +83,7 @@ export default function MarketIntelligence() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-fit">
+        <div className="flex gap-1 mb-3 bg-gray-100 rounded-xl p-1 w-fit">
           {([
             ['overview', 'Overview'],
             ['commodities', 'Commodities'],
@@ -107,7 +107,7 @@ export default function MarketIntelligence() {
         {tab === 'overview' && stats && (
           <>
             {/* Market pulse */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-3">
               <StatCard label="Total Shops" value={String(stats.total_shops)} sub="on the platform" />
               <StatCard label="Market Volume" value={String(stats.total_sales_30d)} sub="units sold (30d)" />
               <StatCard label="Market Revenue" value={ghs(stats.total_revenue_30d)} sub="total (30d)" accent />
@@ -119,8 +119,8 @@ export default function MarketIntelligence() {
             </div>
 
             {/* Quick commodity list */}
-            <div className="card overflow-hidden mb-6">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div className="card overflow-hidden mb-3">
+              <div className="px-6 py-2 border-b border-gray-200 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Top commodities</p>
                   <p className="text-xs text-gray-500">By revenue in the last 30 days</p>
@@ -161,7 +161,7 @@ export default function MarketIntelligence() {
 
             {/* Shop leaderboard */}
             <div className="card overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="px-6 py-2 border-b border-gray-200 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Shop leaderboard</p>
                   <p className="text-xs text-gray-500">Ranked by 30-day revenue</p>
@@ -192,7 +192,7 @@ export default function MarketIntelligence() {
         {/* ═══ COMMODITIES ═══════════════════════════════════════════════════ */}
         {tab === 'commodities' && (
           <div className="card overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-2 border-b border-gray-200">
               <p className="text-sm font-semibold text-gray-900">All commodities</p>
               <p className="text-xs text-gray-500">Tracked across {stats?.total_shops ?? 0} shops · 30-day window</p>
             </div>
@@ -236,7 +236,7 @@ export default function MarketIntelligence() {
         {/* ═══ PRICE TRACKER ═════════════════════════════════════════════════ */}
         {tab === 'prices' && (
           <div className="card overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-2 border-b border-gray-200">
               <p className="text-sm font-semibold text-gray-900">Price movements</p>
               <p className="text-xs text-gray-500">7-day and 30-day price changes · volatility indicators</p>
             </div>
@@ -323,7 +323,7 @@ export default function MarketIntelligence() {
         {tab === 'report' && report && (
           <div className="space-y-6">
             {/* Report header */}
-            <div className="card p-6">
+            <div className="card p-4">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <p className="text-lg font-bold text-gray-900">{report.title}</p>

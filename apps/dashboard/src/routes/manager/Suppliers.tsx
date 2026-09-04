@@ -138,10 +138,10 @@ export default function Suppliers() {
     <DashboardLayout>
       <BackButton />
       <h1 className="page-title mb-1">Suppliers</h1>
-      <p className="page-sub mb-6">Ledger balances, payments and reconciliation — all derived, never hand-held.</p>
+      <p className="page-sub mb-3">Ledger balances, payments and reconciliation — all derived, never hand-held.</p>
 
-      <div className="grid gap-6 lg:grid-cols-2 max-w-5xl">
-        <form onSubmit={handleAdd} className="card p-6 space-y-4 h-fit">
+      <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
+        <form onSubmit={handleAdd} className="card p-4 space-y-2 h-fit">
           <p className="text-sm text-gray-500">
             Net owed across all suppliers (intake owed minus payments recorded):{' '}
             <span className="font-semibold text-gray-900">
@@ -161,7 +161,7 @@ export default function Suppliers() {
         </form>
 
         <div className="card overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100">
+          <div className="px-4 py-2 border-b border-gray-100">
             <p className="text-sm font-medium text-gray-500">Suppliers ({visibleSuppliers.length}{search ? ` of ${suppliers.length}` : ''})</p>
             <input
               value={search}
@@ -171,7 +171,7 @@ export default function Suppliers() {
             />
           </div>
           {visibleSuppliers.length === 0 ? (
-            <p className="p-6 text-gray-500 text-sm">{search ? 'No suppliers match that name.' : 'No suppliers yet.'}</p>
+            <p className="p-4 text-gray-500 text-sm">{search ? 'No suppliers match that name.' : 'No suppliers yet.'}</p>
           ) : (
             <ul className="divide-y">
               {visibleSuppliers.map((s) => {

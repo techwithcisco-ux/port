@@ -96,7 +96,7 @@ export default function BalanceSheet() {
         { color: 'bg-red-500', label: 'Liabilities (what you owe)' },
         { color: 'bg-green-500', label: 'Equity (your net worth)' },
         { color: 'bg-amber-500', label: 'Warning / Pending' },
-      ]} className="mb-6" />
+      ]} className="mb-3" />
 
       {loading ? (
         <p className="text-gray-500">Loading…</p>
@@ -171,7 +171,7 @@ export default function BalanceSheet() {
           </div>
 
           {/* ── ACCOUNTING EQUATION ── */}
-          <div className={`card p-6 border-l-4 ${equationBalanced ? 'border-l-green-500 bg-green-50/30' : 'border-l-amber-500 bg-amber-50/30'}`}>
+          <div className={`card p-4 border-l-4 ${equationBalanced ? 'border-l-green-500 bg-green-50/30' : 'border-l-amber-500 bg-amber-50/30'}`}>
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Accounting Equation</p>

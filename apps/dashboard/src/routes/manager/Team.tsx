@@ -256,14 +256,14 @@ export default function Team() {
     <DashboardLayout>
       <BackButton />
       <h1 className="page-title mb-1">Staff management</h1>
-      <p className="page-sub mb-6">
+      <p className="page-sub mb-3">
         Create staff accounts with a phone number. After creating an account,
         send the activation link — the staff member taps it to activate their
         POS access, then signs in with their phone number only.
       </p>
 
-      <div className="grid gap-6 lg:grid-cols-2 max-w-5xl">
-        <form onSubmit={handleCreateStaff} className="card p-6 space-y-4 h-fit">
+      <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
+        <form onSubmit={handleCreateStaff} className="card p-4 space-y-2 h-fit">
           <p className="text-sm text-gray-500">
             Enter the staff member's name and phone number, pick their branch.
             The system generates a unique POS activation link for them.
@@ -336,7 +336,7 @@ export default function Team() {
         <div className="card overflow-hidden h-fit">
           <p className="card-header">Staff accounts ({staff.length})</p>
           {staff.length === 0 ? (
-            <p className="p-6 text-gray-500 text-sm">No staff accounts yet. Create one to get started.</p>
+            <p className="p-4 text-gray-500 text-sm">No staff accounts yet. Create one to get started.</p>
           ) : (
             <ul className="divide-y">
               {staff.map((s) => {
@@ -348,7 +348,7 @@ export default function Team() {
                   <li key={s.id} className="px-5 py-4">
                     {isEditing ? (
                       /* ── Edit mode ── */
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         <div>
                           <label className="label">Name</label>
                           <input value={editName} onChange={(e) => setEditName(e.target.value)} className="input w-full" />
@@ -454,7 +454,7 @@ export default function Team() {
       {(created || resendUrl) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => { setCreated(null); closeResend(); }} />
-          <div className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-3">
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full p-4 space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-900">
                 {created ? `Account created for ${created.name}` : `Activation link for ${resendName}`}
@@ -526,7 +526,7 @@ export default function Team() {
         </div>
       )}
 
-      <div className="mt-8 max-w-5xl rounded-2xl border border-gray-200/80 bg-gray-50 p-6">
+      <div className="mt-8 max-w-5xl rounded-2xl border border-gray-200/80 bg-gray-50 p-4">
         <p className="text-sm font-medium text-gray-700 mb-2">How it works</p>
         <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
           <li>Enter the staff member's name and phone number, pick their branch.</li>

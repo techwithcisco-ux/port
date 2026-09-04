@@ -62,7 +62,7 @@ export default function ManagerHome() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
         <div>
           <div className="flex items-center gap-2">
         <AdinkraStock size={20} className="text-emerald-600" />
@@ -82,14 +82,14 @@ export default function ManagerHome() {
         { color: 'bg-red-500', label: 'Loss / Danger' },
         { color: 'bg-amber-500', label: 'Warning' },
         { color: 'bg-blue-500', label: 'Revenue' },
-      ]} className="mb-6" />
+      ]} className="mb-3" />
 
       {loading ? (
         <p className="text-gray-500">Loading…</p>
       ) : (
         <>
           {/* Key metrics */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 max-w-5xl lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-3 mb-3 max-w-5xl lg:grid-cols-4">
             <ColorStatCard label="Sales Revenue" value={formatGHS(total)} color="blue" icon={<IconCurrency size={16} />} sublabel={`${filteredSales.length} transactions`} />
             <ColorStatCard label="Cost of Goods" value={formatGHS(cost)} color="orange" icon={<IconBox size={16} />} sublabel="What you paid for stock" />
             <ColorStatCard label="Net Profit" value={formatGHS(profit)} color={profit >= 0 ? 'green' : 'red'} icon={<IconChart size={16} />} sublabel={`${grossMargin.toFixed(1)}% margin`} />
@@ -97,9 +97,9 @@ export default function ManagerHome() {
           </div>
 
           {/* Gauges */}
-          <div className="card p-6 mb-6 max-w-5xl">
+          <div className="card p-4 mb-3 max-w-5xl">
             <p className="text-sm font-semibold text-gray-700 mb-4">Quick Gauges</p>
-            <div className="flex flex-wrap justify-around gap-6">
+            <div className="flex flex-wrap justify-around gap-3">
               <GaugeMeter
                 value={total}
                 max={total + owedTotal || 1}
@@ -136,7 +136,7 @@ export default function ManagerHome() {
           </div>
 
           {/* Funnel */}
-          <div className="card p-6 mb-6 max-w-5xl">
+          <div className="card p-4 mb-3 max-w-5xl">
             <SalesFunnel
               steps={[
                 { label: 'Total Revenue', value: Math.round(total), color: 'bg-blue-500' },
@@ -149,9 +149,9 @@ export default function ManagerHome() {
 
           {/* Branch performance */}
           {analytics.branches.length > 0 && (
-            <div className="card p-6 max-w-5xl">
+            <div className="card p-4 max-w-5xl">
               <p className="text-sm font-semibold text-gray-700 mb-4">Branch Performance</p>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {analytics.branches.map((b, i) => (
                   <div key={b.branchId} className="flex items-center gap-4">
                     <span className="text-sm font-medium w-24 shrink-0">{b.branchName}</span>

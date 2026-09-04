@@ -692,8 +692,8 @@
 }
 
 .splash-star-visible {
-  animation: splash-star-spin 1s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both,
-             splash-glow-pulse 2s ease-in-out 1.2s infinite;
+  animation: splash-star-spin 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both,
+             splash-glow-pulse 2.5s ease-in-out 1.8s infinite;
 }
 
 /* App name */
@@ -703,7 +703,7 @@
 }
 
 .splash-text-visible {
-  animation: splash-text-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
+  animation: splash-text-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) 1.2s both;
 }
 
 .splash-title {
@@ -737,7 +737,7 @@
 }
 
 .splash-bar-visible .splash-bar {
-  animation: splash-bar-fill 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
+  animation: splash-bar-fill 1.8s cubic-bezier(0.22, 1, 0.36, 1) 1.2s both;
 }
 
 .splash-bar {

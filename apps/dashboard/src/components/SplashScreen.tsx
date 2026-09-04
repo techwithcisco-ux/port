@@ -9,11 +9,11 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
 
   useEffect(() => {
     // Phase 1: Star appears (0ms)
-    // Phase 2: Text appears (600ms)
-    // Phase 3: Fade out (1800ms)
-    const t1 = setTimeout(() => setPhase('text'), 600);
-    const t2 = setTimeout(() => setPhase('fade'), 1800);
-    const t3 = setTimeout(onComplete, 2400);
+    // Phase 2: Text appears (1200ms)
+    // Phase 3: Fade out (3000ms)
+    const t1 = setTimeout(() => setPhase('text'), 1200);
+    const t2 = setTimeout(() => setPhase('fade'), 3000);
+    const t3 = setTimeout(onComplete, 3800);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onComplete]);
 

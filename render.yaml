@@ -7,9 +7,9 @@ services:
     staticPublishPath: apps/dashboard/dist
     envVars:
       - key: VITE_SUPABASE_URL
-        value: https://evxxxywejdnfjuqbtyqv.supabase.co
+        value: https://knivhbxshdsfyrboxvnm.supabase.co
       - key: VITE_SUPABASE_ANON_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eHh4eXdlamRuZmp1cWJ0eXF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNjg2MDAsImV4cCI6MjEwMzg0NDYwMH0.YrQTivEwVv_vPLKr4Ofve0gPonN1-isvXjoy2JFGqMs
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtuaXZoYnhzaGRzZnlyYm94dm5tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MjIwMDUsImV4cCI6MjEwNDA5ODAwNX0.q_qgyDvH4KqY0APPFrv9btRGDEACN7ghMMYx0hr9BMo
       - key: VITE_DEMO_MODE
         value: "0"
     routes:
@@ -25,9 +25,9 @@ services:
     staticPublishPath: apps/pos/dist
     envVars:
       - key: VITE_SUPABASE_URL
-        value: https://evxxxywejdnfjuqbtyqv.supabase.co
+        value: https://knivhbxshdsfyrboxvnm.supabase.co
       - key: VITE_SUPABASE_ANON_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eHh4eXdlamRuZmp1cWJ0eXF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNjg2MDAsImV4cCI6MjEwMzg0NDYwMH0.YrQTivEwVv_vPLKr4Ofve0gPonN1-isvXjoy2JFGqMs
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtuaXZoYnhzaGRzZnlyYm94dm5tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MjIwMDUsImV4cCI6MjEwNDA5ODAwNX0.q_qgyDvH4KqY0APPFrv9btRGDEACN7ghMMYx0hr9BMo
       - key: VITE_DEMO_MODE
         value: "0"
     routes:
@@ -43,9 +43,9 @@ services:
     staticPublishPath: apps/market/dist
     envVars:
       - key: VITE_SUPABASE_URL
-        value: https://evxxxywejdnfjuqbtyqv.supabase.co
+        value: https://knivhbxshdsfyrboxvnm.supabase.co
       - key: VITE_SUPABASE_ANON_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eHh4eXdlamRuZmp1cWJ0eXF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNjg2MDAsImV4cCI6MjEwMzg0NDYwMH0.YrQTivEwVv_vPLKr4Ofve0gPonN1-isvXjoy2JFGqMs
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtuaXZoYnhzaGRzZnlyYm94dm5tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MjIwMDUsImV4cCI6MjEwNDA5ODAwNX0.q_qgyDvH4KqY0APPFrv9btRGDEACN7ghMMYx0hr9BMo
       - key: VITE_DEMO_MODE
         value: "0"
       - key: VITE_MARKET_ADMIN_PASS

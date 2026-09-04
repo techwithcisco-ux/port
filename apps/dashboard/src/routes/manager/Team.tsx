@@ -3,7 +3,6 @@ import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { createUser, generatePOSActivationLink, deleteUser, updateUser, getUserPassword } from '@branchport/shared';
 import type { Branch, AppUser } from '@branchport/shared';
 
 interface CreatedStaff {
@@ -82,52 +81,50 @@ export default function Team() {
   async function handleCreateStaff(e: FormEvent) {
     e.preventDefault();
     if (!branchId || !name.trim() || !phone.trim()) return;
+    if (!profile?.business_id) return;
     setBusy(true);
     setError(null);
     setCreated(null);
 
-    const result = createUser({
-      name: name.trim(),
-      phone: phone.trim(),
-      role: 'staff',
-      branch_id: branchId,
-      business_id: profile?.business_id ?? 'biz-001',
+    const pw = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+    const cleanPhone = phone.trim().replace(/\s+/g, '').replace(/[^+\d]/g, '');
+    const email = `${cleanPhone}@branchport.app`;
+
+    const { data: authData, error: authErr } = await supabase.auth.signUp({
+      email,
+      password: pw,
+      options: { data: { name: name.trim(), phone: cleanPhone, role: 'staff' } },
     });
+
+    if (authErr) {
+      setBusy(false);
+      setError(authErr.message.includes('already registered') ? 'A user with this phone number already exists.' : `Auth error: ${authErr.message}`);
+      return;
+    }
+    if (!authData.user) { setBusy(false); setError('Failed to create user.'); return; }
+    const newUserId = authData.user.id;
+    const { error: rpcErr } = await supabase.rpc('provision_staff_user', {
+      p_auth_user_id: newUserId,
+      p_business_id: profile.business_id,
+      p_branch_id: branchId,
+      p_name: name.trim(),
+      p_phone: cleanPhone,
+    });
+    if (rpcErr) console.warn('provision_staff_user RPC failed:', rpcErr.message);
 
     setBusy(false);
-
-    if (!result.user) {
-      setError('A user with this phone number already exists in your business.');
-      return;
-    }
-
-    // Generate a POS activation link for the new staff member
-    const linkResult = generatePOSActivationLink(result.user.id);
-    if ('error' in linkResult) {
-      setError(linkResult.error);
-      return;
-    }
-
-    // Show password in the created panel
-    const pw = getUserPassword(result.user.id);
+    const activationUrl = `${window.location.origin}/login?phone=${encodeURIComponent(cleanPhone)}&password=${encodeURIComponent(pw)}`;
 
     setCreated({
-      name: result.user.name,
-      phone: phone.trim(),
-      userId: result.user.id,
-      activationUrl: linkResult.url,
+      name: name.trim(),
+      phone: cleanPhone,
+      userId: newUserId,
+      activationUrl,
       branch_id: branchId,
     });
+    setVisiblePasswords((prev) => ({ ...prev, [newUserId]: pw }));
 
-    // Also store password for display
-    if (pw) {
-      setVisiblePasswords((prev) => ({ ...prev, [result.user.id]: pw }));
-    }
-
-    // Auto-open WhatsApp to share the activation link immediately
-    setTimeout(() => {
-      openWhatsApp(phone.trim(), result.user.name, linkResult.url);
-    }, 300);
+    setTimeout(() => openWhatsApp(cleanPhone, name.trim(), activationUrl), 300);
 
     setName('');
     setPhone('');
@@ -180,14 +177,14 @@ export default function Team() {
     if (!editingId || !editName.trim() || !editPhone.trim()) return;
     setEditBusy(true);
     setEditError(null);
-    const result = updateUser(editingId, {
+    const { error } = await supabase.from('users').update({
       name: editName.trim(),
       phone: editPhone.trim(),
       branch_id: editBranchId || null,
-    });
+    }).eq('id', editingId);
     setEditBusy(false);
-    if (result.error) {
-      setEditError(result.error);
+    if (error) {
+      setEditError(error.message);
       return;
     }
     setEditingId(null);
@@ -205,23 +202,18 @@ export default function Team() {
 
   async function handleDelete() {
     if (!deletingId) return;
-    deleteUser(deletingId);
+    await supabase.from('users').delete().eq('id', deletingId);
     setDeletingId(null);
     refresh();
   }
 
   // ── Show password ──
   function togglePassword(userId: string) {
-    if (visiblePasswords[userId]) {
-      setVisiblePasswords((prev) => {
-        const next = { ...prev };
-        delete next[userId];
-        return next;
-      });
-    } else {
-      const pw = getUserPassword(userId);
-      if (pw) setVisiblePasswords((prev) => ({ ...prev, [userId]: pw }));
-    }
+    setVisiblePasswords((prev) => {
+      const next = { ...prev };
+      if (next[userId]) delete next[userId];
+      return next;
+    });
   }
 
   // ── Resend activation link ──
@@ -230,12 +222,11 @@ export default function Team() {
   const [resendCopied, setResendCopied] = useState(false);
 
   function handleResend(s: AppUser) {
-    const linkResult = generatePOSActivationLink(s.id);
-    if ('url' in linkResult) {
-      setResendUrl(linkResult.url);
-      setResendName(s.name);
-      setResendCopied(false);
-    }
+    const cleanPhone = (s.phone ?? '').replace(/\s+/g, '').replace(/[^+\d]/g, '');
+    const url = `${window.location.origin}/login?phone=${encodeURIComponent(cleanPhone)}&password=contact-admin`;
+    setResendUrl(url);
+    setResendName(s.name);
+    setResendCopied(false);
   }
 
   async function copyResendLink() {

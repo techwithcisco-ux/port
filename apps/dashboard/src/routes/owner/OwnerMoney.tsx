@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
 import { supabase } from '../../lib/supabase';
-import type { Product, Sale, InventoryAllocation } from '@branchport/shared';
+import type { Product, Sale, InventoryAllocation, Invoice, Debtor, Creditor } from '@branchport/shared';
 import { formatGHS, startOfMonth } from '../../lib/utils';
 
 type MoneyTab = 'overview' | 'pnl' | 'debts';
@@ -12,19 +12,29 @@ export default function OwnerMoney() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [allocations, setAllocations] = useState<InventoryAllocation[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [debtors, setDebtors] = useState<Debtor[]>([]);
+  const [creditors, setCreditors] = useState<Creditor[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       const monthStart = startOfMonth();
-      const [s, p, a] = await Promise.all([
+      const [s, p, a, inv, d, c] = await Promise.allSettled([
         supabase.from('sales').select('*').gte('sold_at', monthStart),
         supabase.from('products').select('*'),
         supabase.from('inventory_allocations').select('*'),
+        supabase.from('invoices').select('*'),
+        supabase.from('debtors').select('*'),
+        supabase.from('creditors').select('*'),
       ]);
-      if (!s.error) setSales((s.data as Sale[]) ?? []);
-      if (!p.error) setProducts((p.data as Product[]) ?? []);
-      if (!a.error) setAllocations((a.data as InventoryAllocation[]) ?? []);
+      const ok = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' && !r.value.error;
+      if (ok(s)) setSales((s.status === 'fulfilled' ? s.value.data : null) ?? []);
+      if (ok(p)) setProducts((p.status === 'fulfilled' ? p.value.data : null) ?? []);
+      if (ok(a)) setAllocations((a.status === 'fulfilled' ? a.value.data : null) ?? []);
+      if (ok(inv)) setInvoices((inv.status === 'fulfilled' ? inv.value.data : null) ?? []);
+      if (ok(d)) setDebtors((d.status === 'fulfilled' ? d.value.data : null) ?? []);
+      if (ok(c)) setCreditors((c.status === 'fulfilled' ? c.value.data : null) ?? []);
       setLoading(false);
     }
     void load();
@@ -254,24 +264,32 @@ export default function OwnerMoney() {
       {tab === 'debts' && (
         <div className="bg-white rounded-2xl border border-gray-200 p-4">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Debts & Creditors</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-              <p className="text-sm font-medium text-amber-700">Money Owed to You</p>
-              <p className="text-2xl font-bold tabular-nums text-amber-800 mt-2">GHS 0.00</p>
-              <p className="text-xs text-amber-600 mt-1">0 pending invoices</p>
-            </div>
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
-              <p className="text-sm font-medium text-gray-700">Money You Owe</p>
-              <p className="text-2xl font-bold tabular-nums text-gray-900 mt-2">GHS 0.00</p>
-              <p className="text-xs text-gray-500 mt-1">0 outstanding</p>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <Link to="/manager/ledger" className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200">
-              View Full Ledger →
-            </Link>
-          </div>
+          {(() => {
+            const pendingInvoices = invoices.filter((i) => i.status === 'pending');
+            const totalOwedToYou = pendingInvoices.reduce((s, i) => s + Number(i.amount_owed), 0);
+            const totalYouOwe = debtors.reduce((s, d) => s + Number(d.amount_owed ?? 0), 0) + creditors.reduce((s, c) => s + Number(c.amount_owed ?? 0), 0);
+            return (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+                    <p className="text-sm font-medium text-amber-700">Money Owed to You</p>
+                    <p className="text-2xl font-bold tabular-nums text-amber-800 mt-2">{formatGHS(totalOwedToYou)}</p>
+                    <p className="text-xs text-amber-600 mt-1">{pendingInvoices.length} pending invoices</p>
+                  </div>
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+                    <p className="text-sm font-medium text-gray-700">Money You Owe</p>
+                    <p className="text-2xl font-bold tabular-nums text-gray-900 mt-2">{formatGHS(totalYouOwe)}</p>
+                    <p className="text-xs text-gray-500 mt-1">{creditors.length} creditors</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <Link to="/manager/ledger" className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200">
+                    View Full Ledger →
+                  </Link>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
     </DashboardLayout>

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { createBranch, updateBranch, deleteBranch } from '@branchport/shared';
 import type { Branch, InventoryAllocation, Product, Sale } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
 
@@ -55,9 +54,12 @@ export default function OwnerStores() {
     if (!newName.trim() || !profile?.business_id) return;
     setAddBusy(true);
     setAddError(null);
-    const result = createBranch(profile.business_id, newName.trim());
+    const { error: insertErr } = await supabase.from('branches').insert({
+      business_id: profile.business_id,
+      name: newName.trim(),
+    });
     setAddBusy(false);
-    if (result.error) { setAddError(result.error); return; }
+    if (insertErr) { setAddError(insertErr.message); return; }
     setNewName('');
     setShowAdd(false);
     loadBranches();
@@ -72,7 +74,7 @@ export default function OwnerStores() {
   async function saveEdit() {
     if (!editingId || !editName.trim()) return;
     setEditBusy(true);
-    updateBranch(editingId, editName.trim());
+    await supabase.from('branches').update({ name: editName.trim() }).eq('id', editingId);
     setEditBusy(false);
     setEditingId(null);
     loadBranches();
@@ -81,7 +83,7 @@ export default function OwnerStores() {
   // ── Delete branch ──
   async function handleDelete() {
     if (!deletingId) return;
-    deleteBranch(deletingId);
+    await supabase.from('branches').delete().eq('id', deletingId);
     setDeletingId(null);
     if (selectedBranch === deletingId) setSelectedBranch(null);
     loadBranches();

@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    touch-action: manipulation;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: none;
+  }
+
+  /* CRITICAL: Prevent iOS zoom on input focus */
+  input[type="text"],
+  input[type="tel"],
+  input[type="password"],
+  input[type="email"],
+  input[type="number"],
+  input[type="search"],
+  input[type="url"],
+  input[type="date"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  .label {
+    @apply block text-xs font-medium text-gray-500 mb-1.5;
+  }
+
+  .input,
+  .select {
+    @apply rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-gray-900 transition-all placeholder:text-gray-400 hover:border-gray-300 focus:border-gray-900/25 focus:outline-none focus:ring-4 focus:ring-gray-900/5;
+    min-height: 44px;
+  }
+}
+
+/* Calculator punch-in animation */
+@keyframes calc-punch {
+  0% { transform: scale(1); }
+  40% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+.calc-punch {
+  animation: calc-punch 120ms ease-out;
+}
+
+/* Result flash animation */
+@keyframes result-flash {
+  0% { background-color: transparent; }
+  30% { background-color: rgb(220 252 231); }
+  100% { background-color: transparent; }
+}
+
+.result-flash {
+  animation: result-flash 400ms ease-out;
+}
+
+/* Color accent borders */
+.border-l-green-500 { border-left-color: #22c55e; }
+.border-l-red-500 { border-left-color: #ef4444; }
+.border-l-amber-500 { border-left-color: #f59e0b; }
+.border-l-blue-500 { border-left-color: #3b82f6; }
+.border-l-purple-500 { border-left-color: #a855f7; }
+.border-l-orange-500 { border-left-color: #f97316; }
+.border-l-teal-500 { border-left-color: #14b8a6; }
+
+/* Pulse animation */
+@keyframes ping-slow {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+.animate-ping-slow {
+  animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* POS mobile layout: stack panels vertically on small screens */
+@media (max-width: 1023px) {
+  /* The main flex container in Sell.tsx */
+  .pos-layout {
+    flex-direction: column !important;
+  }
+  .pos-left-panel {
+    width: 100% !important;
+    max-width: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid #e5e7eb;
+    max-height: 55vh;
+  }
+  .pos-right-panel {
+    flex: 1 !important;
+    min-height: 0;
+  }
+}
+
+/* Ensure calculator buttons are touch-friendly */
+@media (max-width: 640px) {
+  .calc-btn {
+    min-height: 48px;
+    font-size: 18px;
+  }
+}

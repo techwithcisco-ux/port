@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.vercel/
+.env
+.env.local
+.env.*.local
+.env.development
+*.log
+*.log.err
+.DS_Store
+*.local
+*.zip
+build/
+dist_installer/
+__pycache__/
+PrintWell_Setup/
+BOAEvePharmacy_Setup/

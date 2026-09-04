@@ -1,0 +1,58 @@
+services:
+  # Dashboard — main management app
+  - type: static_site
+    name: branchport-dashboard
+    runtime: static
+    buildCommand: npm install && npm run build:dashboard
+    staticPublishPath: apps/dashboard/dist
+    envVars:
+      - key: VITE_SUPABASE_URL
+        value: https://evxxxywejdnfjuqbtyqv.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eHh4eXdlamRuZmp1cWJ0eXF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNjg2MDAsImV4cCI6MjEwMzg0NDYwMH0.YrQTivEwVv_vPLKr4Ofve0gPonN1-isvXjoy2JFGqMs
+      - key: VITE_DEMO_MODE
+        value: "0"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # POS — point of sale app
+  - type: static_site
+    name: branchport-pos
+    runtime: static
+    buildCommand: npm install && npm run build:pos
+    staticPublishPath: apps/pos/dist
+    envVars:
+      - key: VITE_SUPABASE_URL
+        value: https://evxxxywejdnfjuqbtyqv.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eHh4eXdlamRuZmp1cWJ0eXF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNjg2MDAsImV4cCI6MjEwMzg0NDYwMH0.YrQTivEwVv_vPLKr4Ofve0gPonN1-isvXjoy2JFGqMs
+      - key: VITE_DEMO_MODE
+        value: "0"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # Market — market analytics app (standalone site, root base path)
+  - type: static_site
+    name: branchport-market
+    runtime: static
+    buildCommand: npm install && VITE_BASE=/ npm run build:market
+    staticPublishPath: apps/market/dist
+    envVars:
+      - key: VITE_SUPABASE_URL
+        value: https://evxxxywejdnfjuqbtyqv.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eHh4eXdlamRuZmp1cWJ0eXF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNjg2MDAsImV4cCI6MjEwMzg0NDYwMH0.YrQTivEwVv_vPLKr4Ofve0gPonN1-isvXjoy2JFGqMs
+      - key: VITE_DEMO_MODE
+        value: "0"
+      - key: VITE_MARKET_ADMIN_PASS
+        value: market2024
+      - key: VITE_API_URL
+        value: https://gpoavyfgeolwovaquiog.supabase.co
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

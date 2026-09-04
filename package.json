@@ -1,0 +1,17 @@
+{
+  "name": "branchport",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:dashboard": "npm run dev --workspace=apps/dashboard",
+    "dev:pos": "npm run dev --workspace=apps/pos",
+    "dev:market": "npm run dev --workspace=apps/market",
+    "build:dashboard": "npm run build --workspace=apps/dashboard",
+    "build:pos": "npm run build --workspace=apps/pos",
+    "build:market": "npm run build --workspace=apps/market"
+  }
+}

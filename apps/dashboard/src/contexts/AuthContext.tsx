@@ -200,7 +200,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: 'Wrong phone number or password. Please check and try again.' };
       }
       if (msg.includes('Email not confirmed')) {
-        return { error: 'Account not confirmed yet. Please check your email or contact support.' };
+        // Auto-confirm and retry — handles existing users who signed up
+        // before auto_confirm_user was added, or where the RPC failed.
+        console.warn('Email not confirmed, auto-confirming and retrying...');
+        const { data: users } = await supabase.from('users').select('id').eq('phone', cleanPhone).limit(1);
+        if (users && users.length > 0) {
+          await supabase.rpc('auto_confirm_user', { p_user_id: users[0].id });
+        }
+        const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({ email, password: cleanPw });
+        if (retryErr || !retryData?.user) {
+          return { error: 'Account not confirmed. Please contact your administrator.' };
+        }
+        const userId = retryData.user.id;
+        localStorage.setItem(SESSION_KEY, userId);
+        setAuthUserId(userId);
+        const p = await loadProfile(userId);
+        setProfile(p);
+        saveCreds(cleanPhone, cleanPw);
+        return { error: null };
       }
       if (msg.includes('too many')) {
         return { error: 'Too many attempts. Please wait a minute and try again.' };
@@ -266,6 +283,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const newUserId = authData.user.id;
 
+    // Step 1.5: Auto-confirm the user's email so they can sign in immediately.
+    // BranchPort uses phone@branchport.app — a fake email domain — so the
+    // confirmation email never arrives. We confirm the user via RPC.
+    const { error: confirmErr } = await supabase.rpc('auto_confirm_user', {
+      p_user_id: newUserId,
+    });
+    if (confirmErr) {
+      console.warn('auto_confirm_user failed:', confirmErr.message);
+    }
+
     // Step 2: Create business + user via RPC (bypasses RLS, works as anon)
     const { error: rpcErr } = await supabase.rpc('signup_create_owner', {
       p_auth_user_id: newUserId,
@@ -276,7 +303,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (rpcErr) {
       console.error('signup_create_owner RPC failed:', rpcErr.message);
-      // Auth user was created but business wasn't. Still try to sign in.
     }
 
     // Step 3: Sign in to get an active session
@@ -286,13 +312,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (signInErr) {
-      // Email confirmation required. Account created but needs confirmation.
       console.warn('Post-signup signIn failed:', signInErr.message);
       localStorage.setItem(SESSION_KEY, newUserId);
       setAuthUserId(newUserId);
       const p = await loadProfile(newUserId);
       setProfile(p);
-      return { error: null }; // Account created
+      return { error: null };
     }
 
     // Full success — session active

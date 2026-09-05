@@ -453,6 +453,8 @@ BEGIN
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION provision_staff_user(uuid, uuid, uuid, text, text) TO authenticated;
+
 -- ============================================================
 -- SIGNUP FUNCTION (creates business + owner + default branch)
 -- ============================================================

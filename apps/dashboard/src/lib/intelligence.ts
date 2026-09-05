@@ -6,7 +6,7 @@
  * rankings, and market reports. This is the data layer that powers the
  * Market Intelligence dashboard — the "Bloomberg Terminal for Ghana retail".
  *
- * In demo mode, this reads from the in-memory Supabase mock.
+ * Reads from the Supabase backend.
  * In production, this would query the actual database with RLS.
  */
 

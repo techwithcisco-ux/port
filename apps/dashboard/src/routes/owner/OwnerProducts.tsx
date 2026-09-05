@@ -74,11 +74,18 @@ export default function OwnerProducts() {
         <div className="divide-y">
           {products.map((p) => (
             <div key={p.id} className="px-6 py-2 flex items-center justify-between">
-              <div>
+              <div className="flex items-center gap-3">
+                {p.image ? (
+                  <img src={`data:image/jpeg;base64,${p.image}`} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-200 flex-shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-xl text-gray-400 flex-shrink-0">📦</div>
+                )}
+                <div>
                 <p className="font-semibold text-gray-900">{p.name}</p>
                 <p className="text-xs text-gray-500 mt-1">
                   {p.retail_unit_name} · {formatGHS(p.retail_sell_price)}/{p.retail_unit_name}
                 </p>
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-sm font-medium tabular-nums text-gray-900">

@@ -25,6 +25,36 @@ interface VariantDraft {
 
 let nextVariantKey = 1;
 
+/**
+ * Convert a File to a base64-encoded string, resized to max 400px.
+ */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const max = 400;
+        let w = img.width;
+        let h = img.height;
+        if (w > max || h > max) {
+          if (w > h) { h = Math.round(h * max / w); w = max; }
+          else { w = Math.round(w * max / h); h = max; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+      };
+      img.onerror = reject;
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ProductSetup() {
   const { profile } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
@@ -33,6 +63,7 @@ export default function ProductSetup() {
   const [variants, setVariants] = useState<VariantDraft[]>([
     { key: nextVariantKey++, name: 'cup', price: '', baseUnits: '1' },
   ]);
+  const [image, setImage] = useState(''); // base64 product image
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,6 +137,7 @@ export default function ProductSetup() {
       bulk_cost_price: bulkCost,
       bulk_sell_price: bulk.price,
       retail_sell_price: base.price,
+      image: image || null,
     });
 
     if (insertErr) {
@@ -136,6 +168,7 @@ export default function ProductSetup() {
     setStatus(`"${cleanName}" added with ${cleanVariants.length} variant${cleanVariants.length === 1 ? '' : 's'}.`);
     setName('');
     setCost('');
+    setImage('');
     setVariants([{ key: nextVariantKey++, name: 'cup', price: '', baseUnits: '1' }]);
     refresh();
   }
@@ -154,6 +187,35 @@ export default function ProductSetup() {
 
       <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
         <form onSubmit={handleSubmit} className="card p-4 space-y-2 h-fit">
+          {/* Product image upload */}
+          <div className="flex items-center gap-4 p-3 rounded-xl bg-gray-50 border border-gray-200">
+            <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+              {image ? (
+                <img src={`data:image/jpeg;base64,${image}`} alt="Product" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-3xl text-gray-400">📸</span>
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-700">Product Image</p>
+              <p className="text-[11px] text-gray-400 mb-1">Photo helps staff identify items at the POS</p>
+              <div className="flex gap-2">
+                <label className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 cursor-pointer">
+                  📷 Take / Choose Photo
+                  <input type="file" accept="image/*" capture="environment" className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try { setImage(await fileToBase64(file)); } catch { setError('Failed to process image.'); }
+                    }} />
+                </label>
+                {image && (
+                  <button type="button" onClick={() => setImage('')} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100">✕ Remove</button>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Product name</label>
@@ -262,7 +324,13 @@ export default function ProductSetup() {
           ) : (
             <ul className="divide-y">
               {products.map((p) => (
-                <li key={p.id} className="px-4 py-3 text-sm">
+                <li key={p.id} className="px-4 py-3 text-sm flex items-start gap-3">
+                  {p.image ? (
+                    <img src={`data:image/jpeg;base64,${p.image}`} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-base text-gray-400 flex-shrink-0">📦</div>
+                  )}
+                  <div>
                   <p className="font-medium">{p.name}</p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {(p.variants && p.variants.length > 0 ? p.variants : []).map((v) => (
@@ -275,6 +343,7 @@ export default function ProductSetup() {
                   <p className="mt-1 text-xs text-gray-400">
                     {Number(p.units_per_bulk)} per bulk · cost {formatGHS(p.bulk_cost_price)}/bulk
                   </p>
+                  </div>
                 </li>
               ))}
             </ul>

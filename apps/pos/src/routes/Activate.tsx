@@ -1,17 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { activatePOS } from '@branchport/shared';
 
 /**
  * POS Activation page.
  *
  * When the owner sends a staff member an activation link, it points here
- * with ?token=xxx&user=xxx&d=xxx. The page:
- * 1. Decodes the user data from the URL (cross-device: works on any phone)
- * 2. Creates the user locally in this device's localStorage if needed
- * 3. Activates POS access and signs the user in
- * 4. Redirects to the Sell screen
+ * with ?token=xxx. The page activates POS access and signs the user in.
  */
 export default function Activate() {
   const [searchParams] = useSearchParams();
@@ -22,8 +17,6 @@ export default function Activate() {
   const [message, setMessage] = useState('');
 
   const token = searchParams.get('token');
-  const encodedData = searchParams.get('d');
-
   useEffect(() => {
     if (authUserId && profile) {
       navigate('/', { replace: true });
@@ -34,18 +27,6 @@ export default function Activate() {
       setStatus('error');
       setMessage('No activation link found. Ask your manager to send you a new one.');
       return;
-    }
-
-    // If cross-device user data is encoded in the URL, ensure the user exists
-    // in this device's localStorage before trying to activate.
-    if (encodedData) {
-      try {
-        const userData = JSON.parse(atob(decodeURIComponent(encodedData)));
-        ensureUserExists(userData, token);
-      } catch {
-        // If decoding fails, try activatePOS anyway — it might find the user
-        // if both devices share the same localStorage (same browser).
-      }
     }
 
     activateAccount(token).then((result) => {
@@ -109,39 +90,4 @@ export default function Activate() {
   );
 }
 
-/**
- * Ensure a user exists in this device's localStorage.
- * Called when the activation link carries user data from another device.
- */
-function ensureUserExists(userData: {
-  id: string;
-  name: string;
-  phone: string;
-  branch_id: string | null;
-  business_id: string;
-  role: string;
-}, token: string) {
-  const STORAGE_KEY = 'branchport-demo-users-v2';
-  let users: Array<Record<string, unknown>> = [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) users = JSON.parse(raw);
-  } catch { /* empty */ }
 
-  const existing = users.find((u) => u.id === userData.id);
-  if (!existing) {
-    // Create the user with the activation token so activatePOS() can find them
-    users.push({
-      ...userData,
-      password_hash: null,
-      pos_activated: false,
-      pos_activation_token: token,
-      created_at: new Date().toISOString(),
-    });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-  } else if (!existing.pos_activation_token) {
-    // User exists but has no token yet — set it so activatePOS() works
-    existing.pos_activation_token = token;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-  }
-}

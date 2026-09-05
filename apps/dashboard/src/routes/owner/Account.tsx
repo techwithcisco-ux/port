@@ -3,7 +3,6 @@ import DashboardLayout from '../../components/DashboardLayout';
 import BackButton from '../../components/BackButton';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { getBusinessInfo, updateBusinessInfo, updateUserProfile } from '@branchport/shared';
 import { BUSINESS_TYPE_LABELS, BUSINESS_FORM_LABELS } from '@branchport/shared';
 import type { BusinessType, BusinessForm } from '@branchport/shared';
 
@@ -52,17 +51,7 @@ export default function Account() {
     // Load business info from Supabase first, then fallback to localStorage
     async function loadBiz() {
       const bizId = profile?.business_id;
-      if (!bizId) {
-        // Try localStorage fallback
-        const biz = profile ? getBusinessInfo(profile.business_id) : null;
-        if (biz) {
-          setBizName(String(biz.name ?? ''));
-          setBizType(String(biz.business_type ?? ''));
-          setBizForm(String(biz.business_form ?? ''));
-          setBizCategories(Array.isArray(biz.business_categories) ? biz.business_categories as string[] : []);
-        }
-        return;
-      }
+      if (!bizId) return;
       try {
         const { data } = await supabase.from('businesses').select('*').eq('id', bizId).single();
         if (data) {
@@ -70,17 +59,8 @@ export default function Account() {
           setBizType(String(data.business_type ?? ''));
           setBizForm(String(data.business_form ?? ''));
           setBizCategories(Array.isArray(data.business_categories) ? data.business_categories as string[] : []);
-          return;
         }
-      } catch { /* fallback */ }
-      // Fallback to localStorage
-      const biz = getBusinessInfo(bizId);
-      if (biz) {
-        setBizName(String(biz.name ?? ''));
-        setBizType(String(biz.business_type ?? ''));
-        setBizForm(String(biz.business_form ?? ''));
-        setBizCategories(Array.isArray(biz.business_categories) ? biz.business_categories as string[] : []);
-      }
+      } catch { /* ignore */ }
     }
     void loadBiz();
   }, [profile]);
@@ -110,19 +90,6 @@ export default function Account() {
           phone: ownerPhone.trim(),
         }).eq('id', profile.id);
       }
-
-      // Also save to localStorage as fallback
-      updateBusinessInfo(profile.business_id, {
-        name: bizName.trim(),
-        business_type: bizType,
-        business_form: bizForm,
-        business_categories: bizCategories,
-      });
-
-      updateUserProfile(profile.id, {
-        name: ownerName.trim(),
-        phone: ownerPhone.trim(),
-      });
 
       setStatus('Account updated successfully.');
     } catch (err) {

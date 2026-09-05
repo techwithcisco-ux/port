@@ -2,14 +2,12 @@
  * Market Analytics API Layer
  *
  * Connects the standalone Market Stock Analytics dashboard to the
- * BranchPort platform. In demo mode, reads from the shared mock Supabase
- * client. In production, this would hit real Supabase endpoints.
+ * BranchPort platform. Reads from real Supabase endpoints.
  *
  * When deployed separately on Vercel, this can be configured to call
  * the BranchPort API via environment variable VITE_API_URL.
  */
 
-import { createDemoSupabase } from '@branchport/shared';
 import { createClient } from '@supabase/supabase-js';
 import type {
   Business,
@@ -19,25 +17,18 @@ import type {
   AppUser,
 } from '@branchport/shared';
 
-// In demo mode, use the shared mock client.
-// In production, use the real Supabase client with env vars.
-function getSupabaseClient() {
-  if (import.meta.env.VITE_DEMO_MODE === '1') {
-    return createDemoSupabase();
-  }
-  // Real Supabase client for production
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    console.warn('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY — falling back to demo mode');
-    return createDemoSupabase();
-  }
-  // Dynamic import to avoid bundling @supabase/supabase-js in demo mode
-  // @ts-ignore — supabase-js is available at runtime in production
-  return createClient(url, key);
+// Real Supabase client for production
+const url = import.meta.env.VITE_SUPABASE_URL;
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!url || !key) {
+  throw new Error(
+    'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY env vars. '
+    + 'Copy .env.example to .env and fill in your Supabase project values.'
+  );
 }
 
-const supabase = getSupabaseClient();
+const supabase = createClient(url, key);
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -152,17 +143,13 @@ async function fetchAllData(): Promise<RawData> {
 
 export async function getPlatformStats(): Promise<PlatformStats> {
   const data = await fetchAllData();
-  const now = new Date();
   const sevenDaysAgo = daysAgo(7);
   const thirtyDaysAgo = daysAgo(30);
 
   const sales30d = data.sales.filter((s) => s.sold_at >= thirtyDaysAgo);
   const sales7d = data.sales.filter((s) => s.sold_at >= sevenDaysAgo);
 
-  // Estimate active users (users who made a sale in last 7 days)
   const activeUserIds = new Set(sales7d.map((s) => s.sold_by));
-
-  // Estimate new signups in last 7 days
   const newSignups = data.users.filter((u) => u.created_at >= sevenDaysAgo).length;
 
   return {
@@ -224,9 +211,7 @@ export async function getItemsAnalytics(): Promise<ItemAnalytics[]> {
   const sevenDaysAgo = daysAgo(7);
 
   const recentSales = data.sales.filter((s) => s.sold_at >= thirtyDaysAgo);
-  const weekSales = data.sales.filter((s) => s.sold_at >= sevenDaysAgo);
 
-  // Track prices per product for trend analysis
   const priceHistory = new Map<string, { now: number[]; prev: number[]; shops: Set<string> }>();
 
   for (const s of recentSales) {
@@ -279,7 +264,6 @@ export async function getItemsAnalytics(): Promise<ItemAnalytics[]> {
 
 export async function getMarketTicker(): Promise<MarketTicker[]> {
   const data = await fetchAllData();
-  const now = new Date();
   const oneDayAgo = daysAgo(1);
   const sevenDaysAgo = daysAgo(7);
 
@@ -301,7 +285,6 @@ export async function getMarketTicker(): Promise<MarketTicker[]> {
       ? weekPrices.reduce((a, b) => a + b, 0) / weekPrices.length
       : currentPrice;
 
-    // Generate sparkline from recent sales
     const sparkline = [];
     for (let i = 6; i >= 0; i--) {
       const dayStart = daysAgo(i, 8);
@@ -369,10 +352,8 @@ export async function getActivityLog(): Promise<UserActivityLog[]> {
   const userMap = new Map(data.users.map((u) => [u.id, u]));
   const productMap = new Map(data.products.map((p) => [p.id, p]));
 
-  // Combine sales, audit events into a unified activity feed
   const activities: UserActivityLog[] = [];
 
-  // Recent sales as activity
   data.sales.slice(-50).forEach((s) => {
     const user = userMap.get(s.sold_by);
     const product = productMap.get(s.product_id);

@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { AppUser } from '@branchport/shared';
 import { supabase } from '../lib/supabase';
-import { authenticatePOSUser, activatePOS } from '@branchport/shared';
 
 interface AuthState {
   loading: boolean;
@@ -23,14 +22,13 @@ function normalisePhone(v: string) {
   return v.replace(/\s+/g, '').replace(/[^+\d]/g, '');
 }
 
-// Auto-save / load phone number
 function savePhone(phone: string) {
   try {
     localStorage.setItem(SAVED_PHONE_KEY, phone);
   } catch { /* quota exceeded */ }
 }
 
-function loadSavedPhone(): string | null {
+export function loadSavedPhone(): string | null {
   try {
     return localStorage.getItem(SAVED_PHONE_KEY);
   } catch { return null; }
@@ -66,58 +64,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      const user = data.session?.user ?? null;
-      setAuthUserId(user?.id ?? null);
-      if (user) loadProfile(user.id).finally(() => setLoading(false));
-      else setLoading(false);
-    });
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      const user = session?.user ?? null;
-      setAuthUserId(user?.id ?? null);
-      if (user) loadProfile(user.id);
-      else setProfile(null);
-    });
-
-    return () => sub.subscription.unsubscribe();
+    setLoading(false);
   }, []);
 
   /** Phone-only sign-in for POS. No password needed — the owner already
-   *  activated this user's POS access via a unique link. */
+   *  activated this user's POS access via a unique link. Queries Supabase
+   *  directly for the user by phone number. */
   async function signInWithPhone(phone: string) {
     const cleanPhone = normalisePhone(phone);
     if (!cleanPhone) {
       return { error: 'Phone number is required.' };
     }
 
-    const result = authenticatePOSUser(cleanPhone);
-    if ('error' in result) return { error: result.error };
+    // Look up user by phone in Supabase
+    const { data: users, error: queryErr } = await supabase
+      .from('users')
+      .select('*')
+      .eq('phone', cleanPhone)
+      .limit(1);
 
-    const user = result.user;
+    if (queryErr) {
+      console.error('Phone lookup failed:', queryErr.message);
+      return { error: 'Unable to verify phone number. Please try again.' };
+    }
+
+    if (!users || users.length === 0) {
+      return { error: 'No account found for this phone number. Ask your manager to register you first.' };
+    }
+
+    const user = users[0] as AppUser;
+
+    // Verify the user has staff or manager role (POS is for staff/manager only)
+    if (user.role !== 'staff' && user.role !== 'manager') {
+      return { error: 'This account does not have POS access.' };
+    }
+
+    // Auto sign-in
     localStorage.setItem(SESSION_KEY, user.id);
     setAuthUserId(user.id);
     setProfile(user);
-
-    // Save phone for next login
     savePhone(cleanPhone);
 
     return { error: null };
   }
 
-  /** Activate POS access from an activation link token. */
+  /** Activate POS access from an activation link token.
+   *  Looks up the user by their activation token in Supabase. */
   async function activateAccount(token: string) {
-    const result = activatePOS(token);
-    if ('error' in result) return { error: result.error };
+    // Look up user by activation token
+    const { data: users, error: queryErr } = await supabase
+      .from('users')
+      .select('*')
+      .eq('pos_activation_token', token)
+      .limit(1);
 
-    const user = result.user;
+    if (queryErr) {
+      console.error('Token lookup failed:', queryErr.message);
+      return { error: 'Unable to verify activation link. Please try again.' };
+    }
+
+    if (!users || users.length === 0) {
+      return { error: 'Invalid or expired activation link. Ask your manager for a new one.' };
+    }
+
+    const user = users[0] as AppUser;
+
+    // Mark POS as activated
+    const { error: updateErr } = await supabase
+      .from('users')
+      .update({ pos_activated: true })
+      .eq('id', user.id);
+
+    if (updateErr) {
+      console.error('Activation update failed:', updateErr.message);
+      return { error: 'Failed to activate POS access. Please try again.' };
+    }
+
     // Auto sign-in after activation
-    localStorage.setItem(SESSION_KEY, user.id);
-    setAuthUserId(user.id);
-    setProfile(user);
-    savePhone(user.phone ?? '');
+    const activatedUser = { ...user, pos_activated: true } as AppUser;
+    localStorage.setItem(SESSION_KEY, activatedUser.id);
+    setAuthUserId(activatedUser.id);
+    setProfile(activatedUser);
+    savePhone(activatedUser.phone ?? '');
 
-    return { error: null, user };
+    return { error: null, user: activatedUser };
   }
 
   async function signOut() {
@@ -140,6 +170,3 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
-
-// Export for login page auto-fill
-export { loadSavedPhone };

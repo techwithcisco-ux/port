@@ -18,7 +18,6 @@ const STORAGE_KEY = 'branchport_market_auth';
 const SESSION_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 // Admin credentials — set via environment variables in production
-// In demo mode, defaults are used
 function getAdminCredentials(): { username: string; password: string } {
   const username = import.meta.env.VITE_MARKET_ADMIN_USER || 'admin';
   const password = import.meta.env.VITE_MARKET_ADMIN_PASS || 'market2024';

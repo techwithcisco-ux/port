@@ -184,36 +184,3 @@ export default function Login() {
   );
 }
 
-/**
- * Ensure a user exists in this device's localStorage from activation URL data.
- */
-function ensureUserExists(userData: {
-  id: string;
-  name: string;
-  phone: string;
-  branch_id: string | null;
-  business_id: string;
-  role: string;
-}, token: string) {
-  const STORAGE_KEY = 'branchport-demo-users-v2';
-  let users: Array<Record<string, unknown>> = [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) users = JSON.parse(raw);
-  } catch { /* empty */ }
-
-  const existing = users.find((u) => u.id === userData.id);
-  if (!existing) {
-    users.push({
-      ...userData,
-      password_hash: null,
-      pos_activated: false,
-      pos_activation_token: token,
-      created_at: new Date().toISOString(),
-    });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-  } else if (!existing.pos_activation_token) {
-    existing.pos_activation_token = token;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-  }
-}

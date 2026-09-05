@@ -538,8 +538,8 @@ export default function Sell() {
                 : `No match for "${search}"`}
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {filtered.map((p) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
+              {filtered.sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
                 const active = selectedProduct?.id === p.id;
                 const variants = getProductVariants(p);
                 const base = variants[0];
@@ -548,17 +548,33 @@ export default function Sell() {
                   <button
                     key={p.id}
                     onClick={() => selectProduct(p)}
-                    className={`bg-white border-2 rounded-2xl p-4 text-left transition-all min-h-[100px] ${
-                      active ? 'border-gray-900 shadow-sm' : 'border-gray-200 hover:border-gray-400'
+                    className={`bg-white border-2 rounded-2xl text-left transition-all overflow-hidden ${
+                      active ? 'border-gray-900 shadow-md ring-2 ring-gray-900/10' : 'border-gray-200 hover:border-gray-400 hover:shadow-sm'
                     }`}
                   >
-                    <p className="font-semibold text-base truncate">{p.name}</p>
-                    <p className="text-base text-gray-900 tabular-nums mt-1 font-medium">
-                      {ghs(Number(base?.price))}/{base?.name}
-                    </p>
-                    <p className={`text-sm mt-2 ${stock === 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-                      {stock === 0 ? 'Out of stock' : `${stock} left`}
-                    </p>
+                    {/* Product image or placeholder */}
+                    <div className="w-full aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+                      {p.image ? (
+                        <img
+                          src={`data:image/jpeg;base64,${p.image}`}
+                          alt={p.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="text-4xl opacity-40">📦</span>
+                      )}
+                    </div>
+                    {/* Product info below image */}
+                    <div className="px-3 py-2.5">
+                      <p className="font-semibold text-sm truncate">{p.name}</p>
+                      <p className="text-sm text-gray-900 tabular-nums mt-0.5 font-bold">
+                        {ghs(Number(base?.price))}<span className="text-gray-400 font-normal text-xs">/{base?.name}</span>
+                      </p>
+                      <p className={`text-xs mt-1 ${stock === 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                        {stock === 0 ? 'Out of stock' : `${stock} left`}
+                      </p>
+                    </div>
                   </button>
                 );
               })}

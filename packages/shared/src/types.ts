@@ -125,7 +125,7 @@ export interface AppUser {
   role: UserRole;
   name: string;
   phone?: string | null;
-  // Owner-generated password, stored as a simple base64 encoding in demo
+  // Owner-generated password, stored as a simple base64 encoding
   // mode (sufficient for the in-memory mock). In production this would be
   // a proper bcrypt/scrypt hash via Supabase Auth.
   password_hash?: string | null;
@@ -171,6 +171,9 @@ export interface Product {
   bulk_sell_price: number;
   retail_sell_price: number;
   created_at: string;
+  // Base64-encoded product image (JPEG/PNG). Captured during stock intake
+  // or product setup so the POS grid can display vivid product photos.
+  image?: string | null;
   // The full variant list (0011). When absent (legacy products, or a
   // catalog row that hasn't pulled its variants yet) consumers fall back
   // to the synthetic retail/bulk variants via getProductVariants().

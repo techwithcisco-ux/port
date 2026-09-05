@@ -39,6 +39,7 @@ interface IntakeDraft {
   variants: VariantDraft[];
   paidOnCredit: boolean;
   amountPaid: string;
+  image: string; // base64-encoded product photo
 }
 
 let nextItemKey = 1;
@@ -73,7 +74,38 @@ function createEmptyIntake(): IntakeDraft {
     variants: [createEmptyVariant()],
     paidOnCredit: false,
     amountPaid: '',
+    image: '',
   };
+}
+
+/**
+ * Convert a File to a base64-encoded string, resized to max 400px.
+ */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const max = 400;
+        let w = img.width;
+        let h = img.height;
+        if (w > max || h > max) {
+          if (w > h) { h = Math.round(h * max / w); w = max; }
+          else { w = Math.round(w * max / h); h = max; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+      };
+      img.onerror = reject;
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function recalcVariant(v: VariantDraft): VariantDraft {
@@ -264,6 +296,7 @@ export default function StockIntake() {
         bulk_cost_price: firstUnitCost,
         bulk_sell_price: firstSellPrice,
         retail_sell_price: firstSellPrice,
+        image: draft.image || null,
       }).select('id').single();
 
       if (prodErr) { setError(`Error creating "${productName}": ${prodErr.message}`); setSaving(false); return; }
@@ -318,6 +351,7 @@ export default function StockIntake() {
   const [editUnitName, setEditUnitName] = useState('');
   const [editSellPrice, setEditSellPrice] = useState('');
   const [editCostPrice, setEditCostPrice] = useState('');
+  const [editProductImage, setEditProductImage] = useState('');
 
   // Variant edit state
   const [editingVariant, setEditingVariant] = useState<string | null>(null);
@@ -331,6 +365,7 @@ export default function StockIntake() {
     setEditUnitName(p.retail_unit_name || '');
     setEditSellPrice(String(p.retail_sell_price || p.bulk_sell_price || ''));
     setEditCostPrice(String(p.bulk_cost_price || ''));
+    setEditProductImage(p.image || '');
   }
 
   async function handleUpdateProduct(productId: string) {
@@ -341,6 +376,7 @@ export default function StockIntake() {
       retail_sell_price: Number(editSellPrice) || 0,
       bulk_sell_price: Number(editSellPrice) || 0,
       bulk_cost_price: Number(editCostPrice) || 0,
+      image: editProductImage || null,
     }).eq('id', productId);
     if (error) setError(`Error: ${error.message}`);
     else { setStatus('Product updated.'); setEditingProduct(null); await refresh(); }
@@ -588,6 +624,55 @@ export default function StockIntake() {
                       {intakeDrafts.length > 1 && (
                         <button type="button" onClick={() => removeItem(draft.key)} className="ml-3 text-xs text-gray-400 hover:text-red-600">Remove</button>
                       )}
+                    </div>
+
+                    {/* Product image upload */}
+                    <div className="mt-3 flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {draft.image ? (
+                          <img
+                            src={`data:image/jpeg;base64,${draft.image}`}
+                            alt="Product"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-2xl text-gray-400">📸</span>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 font-medium">Product Image (optional)</label>
+                        <p className="text-[11px] text-gray-400 mb-1">Photo helps staff identify items visually</p>
+                        <div className="flex gap-2">
+                          <label className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 cursor-pointer">
+                            📷 Take / Choose
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                try {
+                                  const b64 = await fileToBase64(file);
+                                  updateItem(draft.key, { image: b64 });
+                                } catch {
+                                  setError('Failed to process image.');
+                                }
+                              }}
+                            />
+                          </label>
+                          {draft.image && (
+                            <button
+                              type="button"
+                              onClick={() => updateItem(draft.key, { image: '' })}
+                              className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100"
+                            >
+                              ✕ Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Variant toggle */}
@@ -839,7 +924,31 @@ export default function StockIntake() {
                               <input type="number" min="0" step="any" value={editSellPrice} onChange={(e) => setEditSellPrice(e.target.value)} className="input w-full" />
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          {/* Edit product image */}
+                          <div className="flex items-center gap-3 mt-3">
+                            <div className="w-14 h-14 rounded-xl border-2 border-dashed border-gray-300 bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+                              {editProductImage ? (
+                                <img src={`data:image/jpeg;base64,${editProductImage}`} alt="Product" className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-xl text-gray-400">📸</span>
+                              )}
+                            </div>
+                            <div className="flex gap-2 items-center">
+                              <label className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 cursor-pointer">
+                                📷 Change Photo
+                                <input type="file" accept="image/*" capture="environment" className="hidden"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    try { setEditProductImage(await fileToBase64(file)); } catch { setError('Failed to process image.'); }
+                                  }} />
+                              </label>
+                              {editProductImage && (
+                                <button type="button" onClick={() => setEditProductImage('')} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100">✕ Remove</button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 mt-3">
                             <button onClick={() => handleUpdateProduct(p.id)} className="btn btn-primary btn-sm">Save Product</button>
                             <button onClick={() => setEditingProduct(null)} className="btn btn-outline btn-sm">Cancel</button>
                             <button onClick={() => { if (confirm(`Delete "${p.name}" and all its variants?`)) handleDeleteProduct(p.id); }} className="ml-auto text-xs text-red-500 hover:text-red-700 font-medium">🗑️ Delete Product</button>
@@ -894,7 +1003,13 @@ export default function StockIntake() {
                         </div>
                       ) : (
                         <div className="p-4 flex items-center justify-between">
-                          <div>
+                          <div className="flex items-center gap-3">
+                            {p.image ? (
+                              <img src={`data:image/jpeg;base64,${p.image}`} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-200 flex-shrink-0" />
+                            ) : (
+                              <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-xl text-gray-400 flex-shrink-0">📦</div>
+                            )}
+                            <div>
                             <div className="flex items-center gap-2">
                               <p className="font-medium text-gray-900">{p.name}</p>
                               {totalOwed > 0 && (
@@ -917,6 +1032,7 @@ export default function StockIntake() {
                             <p className="text-xs text-gray-400 mt-1">
                               Cost: {formatGHS(p.bulk_cost_price)} · Sell: {formatGHS(p.retail_sell_price || p.bulk_sell_price)}
                             </p>
+                            </div>
                           </div>
                           <button onClick={() => startEditProduct(p)} className="text-xs text-gray-400 hover:text-gray-900 font-medium px-2 py-1 rounded hover:bg-gray-100">✏️ Edit</button>
                         </div>

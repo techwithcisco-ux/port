@@ -128,7 +128,7 @@ export default function ProductSetup() {
     const base = cleanVariants[0];
     const bulk = cleanVariants.reduce((a, b) => (b.baseUnits > a.baseUnits ? b : a));
 
-    const { data: inserted, error: insertErr } = await supabase.from('products').insert({
+    const productPayload: Record<string, unknown> = {
       business_id: profile.business_id,
       name: cleanName,
       bulk_unit_name: bulk.name,
@@ -137,8 +137,9 @@ export default function ProductSetup() {
       bulk_cost_price: bulkCost,
       bulk_sell_price: bulk.price,
       retail_sell_price: base.price,
-      image: image || null,
-    });
+    };
+    if (image) productPayload.image = image;
+    const { data: inserted, error: insertErr } = await supabase.from('products').insert(productPayload);
 
     if (insertErr) {
       setError(`Error: ${insertErr.message}`);

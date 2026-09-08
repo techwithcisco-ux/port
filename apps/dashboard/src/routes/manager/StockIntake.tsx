@@ -287,7 +287,8 @@ export default function StockIntake() {
       const unitName = firstV.name.trim() || 'unit';
 
       // 1. Create product (must await for ID)
-      const { data: prod, error: prodErr } = await supabase.from('products').insert({
+      // Only include image if the column exists (migration 0021)
+      const productPayload: Record<string, unknown> = {
         business_id: profile.business_id,
         name: productName,
         bulk_unit_name: draft.hasVariants && validVariants.length > 1 ? 'set' : unitName,
@@ -296,8 +297,9 @@ export default function StockIntake() {
         bulk_cost_price: firstUnitCost,
         bulk_sell_price: firstSellPrice,
         retail_sell_price: firstSellPrice,
-        image: draft.image || null,
-      }).select('id').single();
+      };
+      if (draft.image) productPayload.image = draft.image;
+      const { data: prod, error: prodErr } = await supabase.from('products').insert(productPayload).select('id').single();
 
       if (prodErr) { setError(`Error creating "${productName}": ${prodErr.message}`); setSaving(false); return; }
 
@@ -369,15 +371,16 @@ export default function StockIntake() {
   }
 
   async function handleUpdateProduct(productId: string) {
-    const { error } = await supabase.from('products').update({
+    const updatePayload: Record<string, unknown> = {
       name: editProductName.trim(),
       retail_unit_name: editUnitName.trim() || 'unit',
       bulk_unit_name: editUnitName.trim() || 'unit',
       retail_sell_price: Number(editSellPrice) || 0,
       bulk_sell_price: Number(editSellPrice) || 0,
       bulk_cost_price: Number(editCostPrice) || 0,
-      image: editProductImage || null,
-    }).eq('id', productId);
+    };
+    if (editProductImage) updatePayload.image = editProductImage;
+    const { error } = await supabase.from('products').update(updatePayload).eq('id', productId);
     if (error) setError(`Error: ${error.message}`);
     else { setStatus('Product updated.'); setEditingProduct(null); await refresh(); }
   }

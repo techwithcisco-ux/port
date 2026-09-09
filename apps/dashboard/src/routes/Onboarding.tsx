@@ -30,11 +30,11 @@ const ICON_MAP: Partial<Record<BusinessType, string>> = {
   laundry: '👔', other: '📦',
 };
 
-const FORM_OPTIONS: Array<{ value: BusinessForm; label: string; twi: string; icon: string; desc: string }> = [
-  { value: 'retail', label: 'Retail', twi: 'Taa ne tua', icon: '🏪', desc: 'Selling directly to customers' },
-  { value: 'wholesale', label: 'Wholesale', twi: 'Apam Dua', icon: '📦', desc: 'Selling in bulk to shops' },
-  { value: 'depo', label: 'Depo / Warehouse', twi: 'Adaka', icon: '🏭', desc: 'Storage & distribution center' },
-  { value: 'both', label: 'Both Retail & Wholesale', twi: 'Mmienu', icon: '🤝', desc: 'Retail + Wholesale combined' },
+const FORM_OPTIONS: Array<{ value: BusinessForm; label: string; icon: string; desc: string }> = [
+  { value: 'retail', label: 'Retail', icon: '🏪', desc: 'Selling directly to customers' },
+  { value: 'wholesale', label: 'Wholesale', icon: '📦', desc: 'Selling in bulk to shops' },
+  { value: 'depo', label: 'Depo / Warehouse', icon: '🏭', desc: 'Storage & distribution center' },
+  { value: 'both', label: 'Both Retail & Wholesale', icon: '🤝', desc: 'Retail + Wholesale combined' },
 ];
 
 export default function Onboarding() {
@@ -108,26 +108,6 @@ export default function Onboarding() {
       await supabase.from('users').update({ name: username.trim() }).eq('id', profile.id);
     }
 
-    // localStorage fallback
-    try {
-      const usersRaw = localStorage.getItem('branchport-users');
-      if (usersRaw) {
-        const users = JSON.parse(usersRaw);
-        const updated = users.map((u: { id: string }) =>
-          u.id === profile.id ? { ...u, name: username.trim() || profile.name, business_name: businessName.trim(), business_type: primaryType, business_form: finalForm, business_categories: allCategories } : u
-        );
-        localStorage.setItem('branchport-users', JSON.stringify(updated));
-      }
-      const bizRaw = localStorage.getItem('branchport-businesses');
-      if (bizRaw) {
-        const biz = JSON.parse(bizRaw);
-        const updated = biz.map((b: { id: string }) =>
-          b.id === profile.business_id ? { ...b, name: businessName.trim(), business_type: primaryType, business_form: finalForm, business_categories: allCategories } : b
-        );
-        localStorage.setItem('branchport-businesses', JSON.stringify(updated));
-      }
-    } catch { /* ignore */ }
-
     localStorage.setItem('branchport-onboarding-seen', '1');
     setSaving(false);
     navigate('/', { replace: true });
@@ -191,7 +171,6 @@ export default function Onboarding() {
                   >
                     <span className="text-3xl mb-2">{opt.icon}</span>
                     <span className="font-semibold text-sm">{opt.label}</span>
-                    <span className="text-[11px] text-gray-400">{opt.twi}</span>
                     <span className="text-[10px] text-gray-400 mt-1">{opt.desc}</span>
                   </button>
                 ))}
@@ -362,7 +341,7 @@ export default function Onboarding() {
                       Setting up…
                     </span>
                   ) : (
-                    '★ Finish — BrɛMu'
+                    '★ Finish'
                   )}
                 </button>
               </div>

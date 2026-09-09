@@ -365,14 +365,6 @@
   font-weight: 700;
 }
 
-/* Twi text labels */
-.twi-label {
-  font-size: 10px;
-  color: var(--kente-orange);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
 
 /* ═══════════════════════════════════════════════════════════════════
    3D LOADING ANIMATIONS & PAGE TRANSITIONS

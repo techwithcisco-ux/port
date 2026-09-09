@@ -4,15 +4,14 @@ import { IconCart, IconBox, IconReceipt, IconChart } from './Icons';
 interface Tab {
   to: string;
   label: string;
-  twiLabel: string;
   icon: React.ReactNode;
 }
 
 const tabs: Tab[] = [
-  { to: '/', label: 'Sell', twiLabel: 'Tua', icon: <IconCart size={22} /> },
-  { to: '/dashboard', label: 'Stock', twiLabel: 'Aduane', icon: <IconBox size={22} /> },
-  { to: '/invoices', label: 'Invoices', twiLabel: 'Nkrataa', icon: <IconReceipt size={22} /> },
-  { to: '/balance-sheet', label: 'Balance', twiLabel: 'Sika', icon: <IconChart size={22} /> },
+  { to: '/', label: 'Sell', icon: <IconCart size={22} /> },
+  { to: '/dashboard', label: 'Stock', icon: <IconBox size={22} /> },
+  { to: '/invoices', label: 'Invoices', icon: <IconReceipt size={22} /> },
+  { to: '/balance-sheet', label: 'Balance', icon: <IconChart size={22} /> },
 ];
 
 /**
@@ -49,7 +48,7 @@ export default function BottomNav() {
                 {tab.icon}
               </span>
               <span className={`text-[10px] font-medium ${active ? 'text-gray-900' : 'text-gray-400'}`}>
-                {tab.twiLabel}
+                {tab.label}
               </span>
               {active && (
                 <span className="absolute top-0 inset-x-0 h-0.5 rounded-full" style={{background: 'var(--ghana-gold)'}} />

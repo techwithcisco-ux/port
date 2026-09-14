@@ -1,0 +1,9 @@
+{% extends "core/base.html" %}{% block title %}Reports · BranchPort{% endblock %}{% block content %}
+<h1>Business reports</h1>
+<p class="muted">Printable + CSV exports generated on the server.</p>
+<div class="card"><div class="grid g4"><div><p class="muted">Users</p><p><b>{{ stats.users }}</b></p></div><div><p class="muted">Businesses</p><p><b>{{ stats.businesses }}</b></p></div><div><p class="muted">Sales (30d)</p><p><b>{{ stats.sales30 }}</b></p></div><div><p class="muted">Revenue (30d)</p><p><b>{{ stats.rev30 }}</b></p></div></div>
+<div class="nav"><a href="/owner/market/reports/?export=summary">Export summary CSV</a><a href="/owner/market/reports/?export=users">Export users CSV</a><a href="/owner/market/reports/?export=items">Export items CSV</a></div></div>
+<div class="card" style="margin-top:12px"><h3>Users (first {{ users|length }})</h3><table><tr><th>Name</th><th>Phone</th><th>Role</th><th>Business</th></tr>{% for u in users %}<tr><td>{{ u.first_name }}</td><td>{{ u.phone }}</td><td>{{ u.role }}</td><td>{{ u.business.name|default:"—" }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">None.</td></tr>{% endfor %}</table></div>
+<div class="card" style="margin-top:12px"><h3>Items (first {{ items|length }})</h3><table><tr><th>Item</th><th>Avg</th><th>Sold 30d</th><th>Revenue 30d</th><th>Trend</th></tr>{% for i in items %}<tr><td>{{ i.name }}</td><td>{{ i.avg_price }}</td><td>{{ i.sold30 }}</td><td>{{ i.rev30 }}</td><td>{{ i.trend }} {{ i.trend_pct }}%</td></tr>{% empty %}<tr><td colspan="5" class="muted">None.</td></tr>{% endfor %}</table></div>
+<p><a href="/owner/market/">Back to market</a></p>
+{% endblock %}

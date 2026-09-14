@@ -1,0 +1,6 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Market intelligence</h1>
+<div class="nav"><a href="/owner/market/items/">Items tracker</a><a href="/owner/market/live/">Live market</a><a href="/owner/market/analytics/">Usage analytics</a><a href="/owner/market/reports/">Reports</a></div>
+<div class="grid g4"><div class="card"><div class="muted">Market revenue</div><div class="big">{{ total_rev }}</div></div><div class="card"><div class="muted">Sales</div><div class="big">{{ total_sales }}</div></div><div class="card"><div class="muted">Shops</div><div class="big">{{ shops }}</div></div></div>
+<div class="card" style="margin-top:12px"><table><tr><th>Commodity</th><th>Revenue</th><th>Sold</th></tr>{% for p in products %}<tr><td>{{ p.name }}</td><td>{{ p.revenue }}</td><td>{{ p.sold }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

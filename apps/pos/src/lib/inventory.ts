@@ -47,6 +47,7 @@ export interface UnsoldProduct {
   remainingQuantity: number;
   potentialRevenue: number;
   unit: string;
+  revenueToday?: number;
 }
 
 function getRetailPrice(p: Product, unitType: 'bulk' | 'retail'): number {
@@ -255,9 +256,10 @@ export function getUnsoldProducts(
         remainingQuantity: status.remainingQuantity,
         potentialRevenue: status.potentialRevenue,
         unit: p.retail_unit_name,
+        revenueToday: status.revenueToday,
       };
     })
-    .filter((p) => p.remainingQuantity > 0 && p.potentialRevenue === 0)
+    .filter((p) => p.remainingQuantity > 0 && p.revenueToday === 0)
     .sort((a, b) => b.potentialRevenue - a.potentialRevenue);
 }
 

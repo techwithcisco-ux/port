@@ -1,0 +1,6 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Profit &amp; Loss</h1>
+<div class="grid g4"><div class="card"><div class="muted">Revenue</div><div class="big">{{ data.revenue }}</div></div><div class="card"><div class="muted">COGS</div><div class="big">{{ data.cost }}</div></div><div class="card"><div class="muted">Gross profit</div><div class="big">{{ data.profit }}</div></div><div class="card"><div class="muted">Net (− expenses {{ expenses }})</div><div class="big">{{ net }}</div></div></div>
+<div class="card" style="margin-top:12px"><table><tr><th>Product</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>Expected</th></tr>
+{% for p in data.products %}<tr><td>{{ p.product.name }}</td><td>{{ p.revenue }}</td><td>{{ p.cost }}</td><td>{{ p.profit }}</td><td>{{ p.expected }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

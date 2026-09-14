@@ -1,0 +1,5 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Invoices</h1>
+<div class="card"><table><tr><th>Number</th><th>Customer</th><th>Total</th><th>Paid</th><th>Owed</th><th>Status</th><th>Date</th></tr>
+{% for i in invoices %}<tr><td>{{ i.invoice_number }}</td><td>{{ i.customer_name|default:"Walk-in" }}</td><td>{{ i.grand_total }}</td><td>{{ i.amount_paid }}</td><td>{{ i.amount_owed }}</td><td>{{ i.status }}</td><td>{{ i.created_at }}</td></tr>{% empty %}<tr><td colspan="7" class="muted">No invoices yet.</td></tr>{% endfor %}</table></div>
+{% endblock %}

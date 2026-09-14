@@ -1,0 +1,24 @@
+{% extends "core/base.html" %}{% block title %}Owner · BranchPort{% endblock %}
+{% block content %}
+<h1>{{ biz.name }}</h1>
+<p class="muted">Owner overview · {{ sales_count }} sales · revenue today {{ ghs|default:"" }} — see cards</p>
+<div class="grid g4">
+  <div class="card"><div class="muted">Revenue</div><div class="big">{{ data.revenue }}</div></div>
+  <div class="card"><div class="muted">Cost</div><div class="big">{{ data.cost }}</div></div>
+  <div class="card"><div class="muted">Profit</div><div class="big">{{ data.profit }}</div></div>
+  <div class="card"><div class="muted">Today</div><div class="big">{{ revenue_today }}</div></div>
+</div>
+<div class="nav">
+  <a href="/owner/stores/">Stores</a><a href="/products/">Products</a><a href="/intake/">Intake</a>
+  <a href="/allocation/">Allocation</a><a href="/suppliers/">Suppliers</a><a href="/sales/">Sales</a>
+  <a href="/profit/">P&amp;L</a><a href="/stock/">Stock</a><a href="/ledger/">Ledger</a><a href="/expenses/">Expenses</a>
+  <a href="/owner/audit/">Audit log</a><a href="/owner/flags/">Flags</a><a href="/owner/balance/">Balance sheet</a>
+  <a href="/owner/team/">Team</a><a href="/owner/market/">Market</a><a href="/manager/pos/">Till overview</a><a href="/documents/">Docs</a><a href="/onboarding/">Onboarding</a><a href="/activation/">Activation</a><a href="/pos/">POS</a>
+</div>
+<div class="grid g2">
+<div class="card"><h3>Top products</h3><table><tr><th>Product</th><th>Revenue</th><th>Profit</th><th>Left</th></tr>
+{% for p in data.products|slice:":10" %}<tr><td>{{ p.product.name }}</td><td>{{ p.revenue }}</td><td>{{ p.profit }}</td><td>{{ p.remaining }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No data yet — add products, intake, allocation, then sell at POS.</td></tr>{% endfor %}</table></div>
+<div class="card"><h3>Branches</h3><table><tr><th>Branch</th><th>Revenue</th><th>Profit</th><th>Units</th></tr>
+{% for b in data.branches %}<tr><td>{{ b.branch.name }}</td><td>{{ b.revenue }}</td><td>{{ b.profit }}</td><td>{{ b.units }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No branches.</td></tr>{% endfor %}</table></div>
+</div>
+{% endblock %}

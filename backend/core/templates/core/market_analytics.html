@@ -1,0 +1,13 @@
+{% extends "core/base.html" %}{% block title %}Usage analytics · BranchPort{% endblock %}{% block content %}
+<h1>Usage analytics</h1>
+<p class="muted">Last 30 days from real signups + sales.</p>
+<div class="grid g4">
+<div class="card"><div class="muted">Signups (30d)</div><div class="big">{{ totals.signups }}</div></div>
+<div class="card"><div class="muted">Avg daily active</div><div class="big">{{ totals.active_avg }}</div></div>
+<div class="card"><div class="muted">Sales (30d)</div><div class="big">{{ totals.sales }}</div></div>
+<div class="card"><div class="muted">Revenue (30d)</div><div class="big">{{ totals.revenue }}</div></div>
+</div>
+<div class="card" style="margin-top:12px"><h3>Daily active sellers</h3>{% for d in days %}<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span class="muted" style="width:44px">{{ d.date }}</span><div style="flex:1;background:#eee;border-radius:6px;height:14px"><div style="height:100%;background:#111;border-radius:6px;width:{% widthratio d.active mx.users 100 %}%"></div></div><span class="muted">{{ d.active }}</span></div>{% endfor %}</div>
+<div class="card" style="margin-top:12px"><h3>Daily revenue</h3>{% for d in days %}<div style="display:flex;gap:8px;align-items:center;margin:3px 0"><span class="muted" style="width:44px">{{ d.date }}</span><div style="flex:1;background:#eee;border-radius:6px;height:14px"><div style="height:100%;background:#006B3F;border-radius:6px;width:{% widthratio d.revenue mx.revenue 100 %}%"></div></div><span class="muted">{{ d.revenue }}</span></div>{% endfor %}</div>
+<div class="card" style="margin-top:12px"><div class="grid g4"><div><p class="muted">Total users</p><p><b>{{ platform.users }}</b></p></div><div><p class="muted">Businesses</p><p><b>{{ platform.businesses }}</b></p></div><div><p class="muted">Active (7d)</p><p><b>{{ platform.active7 }}</b></p></div><div><p><a href="/owner/market/reports/">Reports</a></p></div></div></div>
+{% endblock %}

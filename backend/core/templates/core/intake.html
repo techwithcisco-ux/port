@@ -1,0 +1,6 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Stock intake</h1><p class="muted">Immutable — amount owed = total − paid. Supplier balance derived.</p>
+<div class="card"><form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn">Record intake</button></form></div>
+<div class="card" style="margin-top:12px"><p>Total owed to suppliers: <b>{{ owed }}</b></p><table><tr><th>Date</th><th>Supplier</th><th>Product</th><th>Qty</th><th>Total</th><th>Paid</th><th>Owed</th></tr>
+{% for i in intakes %}<tr><td>{{ i.created_at }}</td><td>{{ i.supplier.name }}</td><td>{{ i.product.name }}</td><td>{{ i.bulk_quantity }}</td><td>{{ i.cost_price_total }}</td><td>{{ i.amount_paid }}</td><td>{{ i.amount_owed }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

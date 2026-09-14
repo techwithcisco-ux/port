@@ -1,0 +1,6 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Stores</h1>
+<div class="card"><form method="post">{% csrf_token %}<label>New branch name</label><input name="name" placeholder="e.g. Madina"><button class="btn" style="margin-top:8px">Create branch</button></form></div>
+<div class="card" style="margin-top:12px"><table><tr><th>Branch</th><th>Revenue</th><th>Sales</th><th>Allocations</th></tr>
+{% for r in branches %}<tr><td>{{ r.branch.name }}</td><td>{{ r.revenue }}</td><td>{{ r.sales }}</td><td>{{ r.stock }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

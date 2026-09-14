@@ -1,0 +1,23 @@
+{% extends "core/base.html" %}{% block title %}Onboarding · BranchPort{% endblock %}{% block content %}
+<h1>Get {{ biz.name }} ready — {{ done }}/{{ total }} done</h1>
+<p class="muted">Follow the checklist. Each step unlocks the next part of the platform.</p>
+<div class="grid g2">
+<div class="card"><h3>Checklist</h3><table>
+<tr><td>Branches</td><td>{% if steps.branch %}<span class="badge ok">done</span>{% else %}<span class="badge warn">todo</span>{% endif %}</td></tr>
+<tr><td>Products</td><td>{% if steps.product %}<span class="badge ok">done</span>{% else %}<span class="badge warn">todo</span>{% endif %}</td></tr>
+<tr><td>Suppliers</td><td>{% if steps.supplier %}<span class="badge ok">done</span>{% else %}<span class="badge warn">todo</span>{% endif %}</td></tr>
+<tr><td>Intake</td><td>{% if steps.intake %}<span class="badge ok">done</span>{% else %}<span class="badge warn">todo</span>{% endif %}</td></tr>
+<tr><td>Allocation</td><td>{% if steps.allocation %}<span class="badge ok">done</span>{% else %}<span class="badge warn">todo</span>{% endif %}</td></tr>
+<tr><td>Staff</td><td>{% if steps.staff %}<span class="badge ok">done</span>{% else %}<span class="badge warn">todo</span>{% endif %}</td></tr>
+<tr><td>First sale</td><td>{% if steps.sale %}<span class="badge ok">done</span>{% else %}<span class="badge warn">todo</span>{% endif %}</td></tr>
+</table>
+<div class="nav"><a href="/owner/stores/">Stores</a><a href="/products/">Products</a><a href="/suppliers/">Suppliers</a><a href="/intake/">Intake</a><a href="/allocation/">Allocation</a><a href="/owner/team/">Team</a><a href="/pos/">POS</a></div>
+</div>
+<div>
+<div class="card"><h3>Quick add branch</h3><form method="post">{% csrf_token %}<input type="hidden" name="kind" value="branch"><div style="display:flex;gap:8px"><input name="name" placeholder="e.g. Madina"><button class="btn">Add</button></div></form></div>
+<div class="card" style="margin-top:12px"><h3>Quick add supplier</h3><form method="post">{% csrf_token %}<input type="hidden" name="kind" value="supplier"><div style="display:flex;gap:8px"><input name="name" placeholder="e.g. Makola Wholesalers"><button class="btn">Add</button></div></form></div>
+<div class="card" style="margin-top:12px"><h3>Invite staff (POS link issued)</h3><form method="post">{% csrf_token %}<input type="hidden" name="kind" value="staff"><label>Name</label><input name="name" placeholder="e.g. Ama"><label>Phone</label><input name="phone" placeholder="054..."><label>Branch</label><select name="branch"><option value="">—</option>{% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select><div style="margin-top:8px"><button class="btn">Invite</button></div></form></div>
+</div>
+</div>
+<div class="card" style="margin-top:12px"><h3>Staff & activation</h3><table><tr><th>Name</th><th>Phone</th><th>Branch</th><th>POS</th></tr>{% for u in staff %}<tr><td>{{ u.first_name }}</td><td>{{ u.phone }}</td><td>{{ u.branch.name|default:"—" }}</td><td>{% if u.pos_activated %}<span class="badge ok">active</span>{% else %}<span class="badge warn">pending</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No staff yet.</td></tr>{% endfor %}</table><p><a href="/activation/">Open activation console</a></p></div>
+{% endblock %}

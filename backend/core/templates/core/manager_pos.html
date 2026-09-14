@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}{% block title %}Manager POS · BranchPort{% endblock %}{% block content %}
+<h1>Till overview{% if branch %} — {{ branch.name }}{% endif %}</h1>
+<p class="muted">{% for b in branches %}<a href="/manager/pos/?branch={{ b.id }}">{{ b.name }}</a> {% endfor %}· <a href="/pos/{% if branch %}?branch={{ branch.id }}{% endif %}">Open till</a> · <a href="/pos/inventory/">Inventory</a> · <a href="/pos/invoices/">Invoices</a></p>
+{% if stats %}
+<div class="grid g4">
+<div class="card"><div class="muted">Revenue today</div><div class="big">{{ stats.revenue_today }}</div></div>
+<div class="card"><div class="muted">Units today</div><div class="big">{{ stats.units_today }}</div></div>
+<div class="card"><div class="muted">Stock value</div><div class="big">{{ stats.inventory_value }}</div></div>
+<div class="card"><div class="muted">Potential</div><div class="big">{{ stats.potential }}</div></div>
+</div>
+<div class="grid g2" style="margin-top:12px">
+<div class="card"><h3>Low / sold out</h3><table><tr><th>Product</th><th>Left</th><th>Status</th></tr>{% for s in stats.by_product|slice:":10" %}<tr><td>{{ s.product.name }}</td><td>{{ s.remaining }}</td><td><span class="badge {% if s.status == 'healthy' %}ok{% elif s.status == 'stock-low' %}warn{% else %}bad{% endif %}">{{ s.status }}</span></td></tr>{% endfor %}</table></div>
+<div class="card"><h3>Recent sales</h3><table><tr><th>Time</th><th>Item</th><th>Total</th><th>By</th></tr>{% for s in recent %}<tr><td>{{ s.sold_at }}</td><td>{{ s.product.name }} × {{ s.quantity }}</td><td>{{ s.total_price }}</td><td>{{ s.sold_by.first_name|default:s.sold_by.phone }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No sales yet.</td></tr>{% endfor %}</table></div>
+</div>
+{% else %}<div class="card"><p class="muted">No branch yet. <a href="/onboarding/">Create one</a>.</p></div>{% endif %}
+{% endblock %}

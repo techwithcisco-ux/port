@@ -1,0 +1,9 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Flags</h1>
+<div class="card"><h3>Price anomalies ({{ flags.price_flags|length }})</h3><table><tr><th>Date</th><th>Product</th><th>Branch</th><th>Price</th><th>Total</th></tr>
+{% for s in flags.price_flags %}<tr><td>{{ s.sold_at }}</td><td>{{ s.product.name }}</td><td>{{ s.branch.name }}</td><td>{{ s.unit_price }}</td><td>{{ s.total_price }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">No anomalies. Good.</td></tr>{% endfor %}</table></div>
+<div class="card" style="margin-top:12px"><h3>Possible backdating ({{ flags.backdated|length }})</h3><table><tr><th>Sold at</th><th>Reported</th><th>Product</th><th>Branch</th></tr>
+{% for s in flags.backdated %}<tr><td>{{ s.sold_at }}</td><td>{{ s.client_reported_at }}</td><td>{{ s.product.name }}</td><td>{{ s.branch.name }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">None.</td></tr>{% endfor %}</table></div>
+<div class="card" style="margin-top:12px"><h3>Repeated discounters</h3><table><tr><th>User</th><th>Discounted sales</th></tr>
+{% for uid,count in flags.repeat_discounters %}<tr><td>{{ uid|slice:":8" }}</td><td>{{ count }}</td></tr>{% empty %}<tr><td colspan="2" class="muted">None.</td></tr>{% endfor %}</table></div>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Sales report</h1>
+<form method="get" style="display:flex;gap:8px"><select name="branch"><option value="">All branches</option>{% for b in branches %}<option value="{{ b.id }}" {% if active_branch == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select><button class="btn sec">Filter</button></form>
+<p>Total: <b>{{ total }}</b></p>
+<div class="card"><table><tr><th>Date</th><th>Branch</th><th>Product</th><th>Qty</th><th>Total</th><th>By</th><th>Flag</th></tr>
+{% for s in sales %}<tr><td>{{ s.sold_at }}</td><td>{{ s.branch.name }}</td><td>{{ s.product.name }}</td><td>{{ s.quantity }}</td><td>{{ s.total_price }}</td><td>{{ s.sold_by.first_name }}</td><td>{% if s.price_flagged %}<span class="badge bad">flag</span>{% endif %}</td></tr>{% endfor %}</table></div>
+{% endblock %}

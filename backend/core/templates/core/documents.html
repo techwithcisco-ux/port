@@ -1,0 +1,10 @@
+{% extends "core/base.html" %}{% block title %}Documents · BranchPort{% endblock %}{% block content %}
+<h1>Documents</h1>
+<p class="muted">{{ sales_count }} sales on record · exports are CSV for the accountant.</p>
+<div class="nav"><a href="/documents/?export=sales">Export sales CSV</a><a href="/documents/?export=invoices">Export invoices CSV</a><a href="/documents/?export=intakes">Export intakes CSV</a><a href="/owner/audit/">Audit log</a></div>
+<div class="card"><h3>Invoices ({{ invoices|length }})</h3><table><tr><th>Number</th><th>Customer</th><th>Total</th><th>Owed</th><th>Status</th><th>Date</th></tr>{% for i in invoices %}<tr><td>{{ i.invoice_number }}</td><td>{{ i.customer_name|default:"Walk-in" }}</td><td>{{ i.grand_total }}</td><td>{{ i.amount_owed }}</td><td>{{ i.status }}</td><td>{{ i.created_at }}</td></tr>{% empty %}<tr><td colspan="6" class="muted">No invoices.</td></tr>{% endfor %}</table></div>
+<div class="grid g2" style="margin-top:12px">
+<div class="card"><h3>Intakes (immutable)</h3><table><tr><th>Date</th><th>Supplier</th><th>Product</th><th>Owed</th></tr>{% for i in intakes|slice:":25" %}<tr><td>{{ i.created_at }}</td><td>{{ i.supplier.name }}</td><td>{{ i.product.name }}</td><td>{{ i.amount_owed }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">None.</td></tr>{% endfor %}</table></div>
+<div class="card"><h3>Allocations (immutable)</h3><table><tr><th>Date</th><th>Product</th><th>Branch</th><th>Qty</th></tr>{% for a in allocs|slice:":25" %}<tr><td>{{ a.allocated_at }}</td><td>{{ a.product.name }}</td><td>{{ a.branch.name }}</td><td>{{ a.retail_quantity_equivalent }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">None.</td></tr>{% endfor %}</table></div>
+</div>
+{% endblock %}

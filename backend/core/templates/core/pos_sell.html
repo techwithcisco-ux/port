@@ -1,0 +1,31 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Sell — {{ branch.name }}</h1>
+<p class="muted"><a href="/pos/inventory/">Inventory</a> · <a href="/pos/invoices/">Invoices</a> ·
+{% for b in branches %}<a href="/pos/?branch={{ b.id }}">{{ b.name }}</a> {% endfor %}</p>
+<form method="get" style="display:flex;gap:8px;margin:10px 0"><input name="q" value="{{ q }}" placeholder="Search products…"><input type="hidden" name="branch" value="{{ branch.id }}"><button class="btn sec">Search</button></form>
+<div class="prod-grid">
+{% for p in products %}
+<div class="prod">
+<form method="post">{% csrf_token %}
+<strong>{{ p.name }}</strong><br>
+<span class="muted">from {{ p.retail_sell_price }} / {{ p.retail_unit_name }}</span><br>
+<span class="muted">left: {{ p.stock_left }}</span>
+<input type="hidden" name="action" value="add"><input type="hidden" name="product_id" value="{{ p.id }}">
+{% with vs=p.variants.all %}{% if vs %}<select name="variant_id">{% for v in vs %}<option value="{{ v.id }}">{{ v.name }} · {{ v.price }}</option>{% endfor %}</select>{% endif %}{% endwith %}
+<div style="display:flex;gap:6px;margin-top:6px"><input name="quantity" value="1" type="number" min="1" step="1" style="width:80px"><button class="btn">Add</button></div>
+</form>
+</div>
+{% empty %}<p class="muted">No products. <a href="/products/">Add products</a> first.</p>{% endfor %}
+</div>
+<div class="card" style="margin-top:14px"><h3>Current order ({{ cart|length }} lines) — {{ grand }}</h3>
+<table><tr><th>#</th><th>Item</th><th>Qty</th><th>Total</th></tr>
+{% for l in cart %}<tr><td>{{ forloop.counter }}</td><td>{{ l.product_name }} ({{ l.variant_name }})</td><td>{{ l.qty }}</td><td>{{ l.total }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Tap Add on a product.</td></tr>{% endfor %}</table>
+<form method="post" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">{% csrf_token %}
+<input type="hidden" name="action" value="checkout">
+<input name="customer_name" placeholder="Customer name (optional)" style="max-width:220px">
+<input name="customer_phone" placeholder="Customer phone" style="max-width:200px">
+<select name="payment_mode" style="max-width:160px"><option value="full">Cash</option><option value="credit">Credit</option></select>
+<button class="btn green">Complete sale — {{ grand }}</button>
+<button class="btn sec" name="action" value="clear" formnovalidate>Clear</button>
+</form></div>
+{% endblock %}

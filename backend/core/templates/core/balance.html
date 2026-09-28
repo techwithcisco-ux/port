@@ -1,0 +1,5 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Balance sheet</h1>
+<div class="grid g2"><div class="card"><h3>Assets</h3><p>Stock value: <b>{{ stock_value }}</b></p><p>Debtors owed to you: <b>{{ debtors }}</b></p><p>Revenue: <b>{{ data.revenue }}</b></p></div>
+<div class="card"><h3>Liabilities &amp; equity</h3><p>Creditors you owe: <b>{{ creditors }}</b></p><p>Expenses: <b>{{ expenses }}</b></p><p>Net profit: <b>{{ data.profit }}</b></p></div></div>
+{% endblock %}

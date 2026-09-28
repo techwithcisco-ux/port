@@ -1,0 +1,9 @@
+{% extends "core/base.html" %}{% block title %}Items tracker · BranchPort{% endblock %}{% block content %}
+<h1>Items tracker</h1>
+<p class="muted">{{ items|length }} commodities tracked across shops · no PII.</p>
+<form method="get" style="display:flex;gap:8px;margin:10px 0"><input name="q" value="{{ q }}" placeholder="Search items…"><button class="btn sec">Search</button></form>
+<div class="card"><table><tr><th>Item</th><th>Avg</th><th>Range</th><th>Sold (30d)</th><th>Revenue (30d)</th><th>Shops</th><th>Trend</th></tr>
+{% for i in items %}<tr><td><b>{{ i.name }}</b></td><td>{{ i.avg_price }}</td><td class="muted">{{ i.min_price }} – {{ i.max_price }}</td><td>{{ i.sold30 }}</td><td>{{ i.rev30 }}</td><td>{{ i.shops }}</td><td><span class="badge {% if i.trend == 'rising' %}ok{% elif i.trend == 'falling' %}bad{% endif %}">{% if i.trend == 'rising' %}▲{% elif i.trend == 'falling' %}▼{% else %}—{% endif %} {{ i.trend_pct }}%</span></td></tr>
+{% empty %}<tr><td colspan="7" class="muted">No items match.</td></tr>{% endfor %}</table></div>
+<p><a href="/owner/market/">Back to market</a></p>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "core/base.html" %}{% block title %}Live market · BranchPort{% endblock %}{% block content %}
+<h1>Live market</h1>
+<p class="muted">Computed from real sales · auto-refresh every 30s.</p>
+<script>setTimeout(function(){location.reload()},30000)</script>
+<div class="grid g2">
+<div class="card"><h3>▲ Top gainers</h3><table><tr><th>Item</th><th>Price</th><th>24h</th></tr>{% for t in gainers %}<tr><td>{{ t.name }}</td><td>{{ t.price }}</td><td><span class="badge ok">+{{ t.chg }}%</span></td></tr>{% empty %}<tr><td colspan="3" class="muted">No gainers.</td></tr>{% endfor %}</table></div>
+<div class="card"><h3>▼ Top losers</h3><table><tr><th>Item</th><th>Price</th><th>24h</th></tr>{% for t in losers %}<tr><td>{{ t.name }}</td><td>{{ t.price }}</td><td><span class="badge bad">{{ t.chg }}%</span></td></tr>{% empty %}<tr><td colspan="3" class="muted">No losers.</td></tr>{% endfor %}</table></div>
+</div>
+<div class="card" style="margin-top:12px"><h3>Full board</h3><table><tr><th>#</th><th>Item</th><th>Price</th><th>24h</th><th>Vol</th><th>High</th><th>Low</th><th>14d</th></tr>
+{% for t in board %}<tr><td class="muted">{{ forloop.counter }}</td><td><b>{{ t.name }}</b></td><td>{{ t.price }}</td><td>{% if t.chg > 0 %}<span class="badge ok">+{{ t.chg }}%</span>{% elif t.chg < 0 %}<span class="badge bad">{{ t.chg }}%</span>{% else %}<span class="badge">—</span>{% endif %}</td><td>{{ t.vol }}</td><td>{{ t.hi }}</td><td>{{ t.lo }}</td><td class="muted">{% for v in t.spark %}{{ v|floatformat:0 }}{% if not forloop.last %},{% endif %}{% endfor %}</td></tr>
+{% empty %}<tr><td colspan="8" class="muted">No sales yet.</td></tr>{% endfor %}</table></div>
+<p><a href="/owner/market/">Back to market</a></p>
+{% endblock %}

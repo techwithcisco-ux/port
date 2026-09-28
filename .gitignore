@@ -4,6 +4,7 @@ dist/
 .env
 .env.local
 .env.*.local
+.env.production
 .env.development
 .env.production
 *.log
@@ -14,5 +15,7 @@ dist/
 build/
 dist_installer/
 __pycache__/
+*.pyc
+backend/db.sqlite3
 PrintWell_Setup/
 BOAEvePharmacy_Setup/

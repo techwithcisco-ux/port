@@ -1,0 +1,7 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Stock balance</h1>
+<form method="get"><select name="branch" onchange="this.form.submit()"><option value="">All branches (today)</option>{% for b in branches %}<option value="{{ b.id }}" {% if active_branch == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></form>
+<div class="grid g4" style="margin-top:10px"><div class="card"><div class="muted">Revenue today</div><div class="big">{{ stats.revenue_today }}</div></div><div class="card"><div class="muted">Stock value</div><div class="big">{{ stats.inventory_value }}</div></div><div class="card"><div class="muted">Potential</div><div class="big">{{ stats.potential }}</div></div><div class="card"><div class="muted">Profit today</div><div class="big">{{ stats.profit_today }}</div></div></div>
+<div class="card" style="margin-top:12px"><table><tr><th>Product</th><th>Allocated</th><th>Sold</th><th>Left</th><th>Value</th><th>Status</th></tr>
+{% for s in stats.by_product %}<tr><td>{{ s.product.name }}</td><td>{{ s.allocated }}</td><td>{{ s.sold }}</td><td>{{ s.remaining }}</td><td>{{ s.inventory_value }}</td><td><span class="badge {% if s.status == 'healthy' %}ok{% elif s.status == 'stock-low' %}warn{% else %}bad{% endif %}">{{ s.status }}</span></td></tr>{% endfor %}</table></div>
+{% endblock %}

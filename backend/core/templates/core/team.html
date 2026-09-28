@@ -1,0 +1,10 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Team</h1>
+<div class="card"><h3>Add member</h3><form method="post">{% csrf_token %}
+<label>Name</label><input name="name"><label>Phone</label><input name="phone" placeholder="054…"><label>Role</label>
+<select name="role"><option value="staff">Staff</option><option value="manager">Manager</option><option value="owner">Owner</option></select>
+<label>Branch</label><select name="branch"><option value="">—</option>{% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select>
+<label>Password</label><input name="password" value="password123"><button class="btn" style="margin-top:8px">Add</button></form></div>
+<div class="card" style="margin-top:12px"><table><tr><th>Name</th><th>Phone</th><th>Role</th><th>Branch</th></tr>
+{% for u in users %}<tr><td>{{ u.first_name }}</td><td>{{ u.phone }}</td><td>{{ u.role }}</td><td>{{ u.branch.name|default:"—" }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

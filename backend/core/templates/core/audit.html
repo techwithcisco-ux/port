@@ -1,0 +1,6 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Audit log</h1><p class="muted">Append-only — written by the system, never editable.</p>
+<form method="get"><input name="q" value="{{ q }}" placeholder="Filter entity/action…"></form>
+<div class="card" style="margin-top:10px"><table><tr><th>Time</th><th>Actor</th><th>Action</th><th>Entity</th><th>ID</th></tr>
+{% for e in events %}<tr><td>{{ e.occurred_at }}</td><td>{{ e.actor.first_name }}</td><td>{{ e.action_type }}</td><td>{{ e.entity_type }}</td><td class="muted">{{ e.entity_id|slice:":8" }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "core/base.html" %}{% block title %}POS activation · BranchPort{% endblock %}{% block content %}
+<h1>POS activation — {{ biz.name }}</h1>
+<p class="muted">Staff must activate before the till opens. Share the link (e.g. WhatsApp); one tap activates.</p>
+<div class="card"><table><tr><th>Name</th><th>Phone</th><th>Branch</th><th>Status</th><th>Link</th><th>Action</th></tr>
+{% for u in users %}<tr><td>{{ u.first_name }}</td><td>{{ u.phone }}</td><td>{{ u.branch.name|default:"—" }}</td>
+<td>{% if u.pos_activated %}<span class="badge ok">active</span>{% else %}<span class="badge warn">pending</span>{% endif %}</td>
+<td class="muted">{% if u.pos_activation_token %}/activate/{{ u.pos_activation_token }}/{% else %}—{% endif %}</td>
+<td>{% if user.role == "owner" %}<form method="post" style="display:flex;gap:6px">{% csrf_token %}<input type="hidden" name="user_id" value="{{ u.id }}">{% if not u.pos_activated %}<button class="btn sec" name="action" value="issue">Issue link</button><button class="btn" name="action" value="activate">Activate</button>{% else %}<button class="btn sec" name="action" value="revoke">Revoke</button>{% endif %}</form>{% else %}<span class="muted">owner only</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted">No staff yet. <a href="/onboarding/">Invite staff</a></td></tr>{% endfor %}</table></div>
+{% endblock %}

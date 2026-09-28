@@ -1,0 +1,8 @@
+{% extends "core/base.html" %}{% block title %}POS not activated · BranchPort{% endblock %}{% block content %}
+<div class="card" style="max-width:520px;margin:30px auto;text-align:center">
+<h2>POS access pending</h2>
+<p class="muted">Hi {{ user.first_name|default:user.phone }} — your account exists but the till is locked until your owner/manager activates you.</p>
+<p>Ask them to open <b>Activation</b> and tap <b>Activate</b> next to your name, or send you your activation link.</p>
+<p><a class="btn sec" href="/logout/">Sign out</a> <a class="btn" href="/">Retry</a></p>
+</div>
+{% endblock %}

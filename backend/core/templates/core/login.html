@@ -1,0 +1,10 @@
+{% extends "core/base.html" %}{% block title %}Sign in · BranchPort{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:30px auto">
+<h2>🇬🇭 BranchPort</h2>
+<p class="muted">Akwaaba — sign in with phone + password</p>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn" style="width:100%;margin-top:10px">Sign in</button></form>
+<p class="muted" style="margin-top:12px">New business? <a href="/signup/">Create owner account</a></p>
+<p class="muted">Demo: owner@demo / manager@demo / staff phone <b>0540000001</b> — password <b>password123</b> (run <code>manage.py seed_demo</code> first).</p>
+</div>
+{% endblock %}

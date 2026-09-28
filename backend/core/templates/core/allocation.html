@@ -1,0 +1,6 @@
+{% extends "core/base.html" %}{% block content %}
+<h1>Stock allocation</h1>
+<div class="card"><form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn">Allocate</button></form></div>
+<div class="card" style="margin-top:12px"><table><tr><th>Date</th><th>Product</th><th>Branch</th><th>Bulk qty</th><th>Retail equiv</th></tr>
+{% for a in allocs %}<tr><td>{{ a.allocated_at }}</td><td>{{ a.product.name }}</td><td>{{ a.branch.name }}</td><td>{{ a.bulk_quantity }}</td><td>{{ a.retail_quantity_equivalent }}</td></tr>{% endfor %}</table></div>
+{% endblock %}

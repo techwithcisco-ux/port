@@ -20,9 +20,11 @@ services:
   - name: branchport-api
     type: web
     runtime: node
-    rootDir: branchport/apps/api
+    # Repo root: install the npm workspaces (hoists express/pg/jwt), then
+    # start the API workspace. Must NOT set rootDir to apps/api — its
+    # deps live in the root node_modules via workspaces.
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: npm start --workspace=@branchport/api
     plan: free
     healthCheckPath: /health
     envVars:
@@ -39,7 +41,6 @@ services:
   - name: branchport-dashboard
     type: web
     runtime: static
-    rootDir: branchport
     buildCommand: npm install && npm run build --workspace=@branchport/shared && npm run build:dashboard
     staticPublishPath: apps/dashboard/dist
     envVars:
@@ -58,7 +59,6 @@ services:
   - name: branchport-pos
     type: web
     runtime: static
-    rootDir: branchport
     buildCommand: npm install && npm run build --workspace=@branchport/shared && npm run build:pos
     staticPublishPath: apps/pos/dist
     envVars:
@@ -76,7 +76,6 @@ services:
   - name: branchport-market
     type: web
     runtime: static
-    rootDir: branchport
     buildCommand: npm install && npm run build --workspace=@branchport/shared && VITE_BASE=/ npm run build:market
     staticPublishPath: apps/market/dist
     envVars:

@@ -6,19 +6,29 @@ interface AuthState {
   loading: boolean;
   authUserId: string | null;
   profile: AppUser | null;
-  /** POS sign-in — phone + password on the Render API (password optional
-   *  for legacy staff rows created before passwords existed). */
-  signInWithPhone: (phone: string, password?: string) => Promise<{ error: string | null; passwordRequired?: boolean; limited?: boolean }>;
-  /** Activate POS access from an activation link token. */
-  activateAccount: (token: string) => Promise<{ error: string | null; user?: AppUser }>;
+  /** POS sign-in — phone + password on BOTH backends. The password is
+   *  mandatory on the Supabase path: only a real Supabase Auth session
+   *  satisfies RLS, so passwordless logins can never sync sales. */
+  signInWithPhone: (phone: string, password?: string) => Promise<{ error: string | null; passwordRequired?: boolean }>;
+  /** Activate POS access from an activation link token, then sign in
+   *  with the password from the invite. */
+  activateAccount: (token: string) => Promise<{ error: string | null; phone?: string }>;
   signOut: () => Promise<void>;
 }
 
 const SESSION_KEY = 'branchport-pos-session';
 const SAVED_PHONE_KEY = 'branchport-pos-saved-phone';
 
+// Login rate-limit: slow brute force on shared branch devices.
+let failCount = 0;
+let lockedUntil = 0;
+
 function normalisePhone(v: string) {
   return v.replace(/\s+/g, '').replace(/[^+\d]/g, '');
+}
+
+function phoneToEmail(phone: string): string {
+  return `${phone}@branchport.app`;
 }
 
 function savePhone(phone: string) {
@@ -55,40 +65,88 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Render API mode: the JWT + profile are cached by the login calls
-    // below, so boot straight from cache (no extra round-trip).
-    if (isApiMode) {
+    let cancelled = false;
+    async function init() {
       try {
-        const raw = localStorage.getItem('branchport-pos-user');
-        if (raw) {
-          const cached = JSON.parse(raw) as AppUser;
-          setAuthUserId(cached.id);
-          setProfile(cached);
-          setLoading(false);
+        if (isApiMode) {
+          // Verify the cached JWT instead of trusting it blindly.
+          const token = (() => { try { return localStorage.getItem('branchport-pos-token'); } catch { return null; } })();
+          if (token) {
+            const res = await fetch(`${apiBaseUrl}/auth/me`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!cancelled && res.ok && body.user) {
+              setAuthUserId(body.user.id);
+              setProfile(body.user as AppUser);
+              try { localStorage.setItem('branchport-pos-user', JSON.stringify(body.user)); } catch {}
+              setLoading(false);
+              return;
+            }
+            // Bad/expired token — drop it so login is forced.
+            try {
+              localStorage.removeItem('branchport-pos-token');
+              localStorage.removeItem('branchport-pos-user');
+              localStorage.removeItem(SESSION_KEY);
+            } catch {}
+          }
+          if (!cancelled) setLoading(false);
           return;
         }
-      } catch { /* corrupt cache — fall through to login */ }
-      setLoading(false);
-      return;
+        // Supabase path: the ONLY trusted session is a real Supabase Auth
+        // session. A bare user id in localStorage proves nothing (anyone
+        // can write it), so it is never accepted on its own.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!cancelled && session?.user) {
+          setAuthUserId(session.user.id);
+          await loadProfile(session.user.id);
+        }
+      } catch (e) {
+        console.error('POS auth init failed:', (e as Error).message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
-    const savedSession = localStorage.getItem(SESSION_KEY);
-    if (savedSession) {
-      const userId = savedSession;
-      setAuthUserId(userId);
-      loadProfile(userId).finally(() => setLoading(false));
-      return;
-    }
+    init();
 
-    setLoading(false);
+    // Keep profile in step with sign-outs from other tabs.
+    const sub = !isApiMode && supabase.auth.onAuthStateChange
+      ? supabase.auth.onAuthStateChange(async (event: string, session: { user?: { id: string } } | null) => {
+          if (event === 'SIGNED_OUT') {
+            try { localStorage.removeItem(SESSION_KEY); } catch {}
+            setAuthUserId(null);
+            setProfile(null);
+          } else if (event === 'SIGNED_IN' && session?.user) {
+            setAuthUserId(session.user.id);
+            await loadProfile(session.user.id);
+          }
+        })
+      : null;
+    return () => {
+      cancelled = true;
+      try { (sub as { data?: { subscription?: { unsubscribe?: () => void } } })?.data?.subscription?.unsubscribe?.(); } catch {}
+    };
   }, []);
 
-  /** POS sign-in. Render API path uses phone + password (JWT); legacy
-   *  Supabase path keeps the original passwordless phone lookup. */
+  /** POS sign-in. Both backends require phone + password so the session
+   *  can actually write to the server (RLS on Supabase, JWT on the API). */
   async function signInWithPhone(phone: string, password?: string) {
     const cleanPhone = normalisePhone(phone);
     if (!cleanPhone) {
       return { error: 'Phone number is required.' };
     }
+    if (Date.now() < lockedUntil) {
+      return { error: 'Too many attempts. Wait a minute and try again.' };
+    }
+    const fail = (msg: string) => {
+      failCount += 1;
+      if (failCount >= 5) {
+        lockedUntil = Date.now() + 60_000;
+        failCount = 0;
+        return { error: 'Too many attempts. Wait a minute and try again.' };
+      }
+      return { error: msg };
+    };
 
     if (isApiMode) {
       try {
@@ -100,8 +158,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
           if (body.passwordRequired) return { error: 'This account needs a password — enter it below.', passwordRequired: true };
-          return { error: body.error || 'Unable to verify phone number. Please try again.' };
+          return fail(body.error || 'Unable to verify phone number. Please try again.');
         }
+        failCount = 0;
         // Persist the JWT where the apiClient data layer expects it,
         // plus the legacy session key the rest of the app reads.
         try {
@@ -119,38 +178,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Legacy Supabase passwordless lookup
-    const { data: users, error: queryErr } = await supabase
-      .from('users')
-      .select('*')
-      .eq('phone', cleanPhone)
-      .limit(1);
-
-    if (queryErr) {
-      console.error('Phone lookup failed:', queryErr.message);
-      return { error: 'Unable to verify phone number. Please try again.' };
+    // Supabase path: real Auth session (phone maps to branchport.app email,
+    // exactly like the dashboard). No session ⇒ RLS rejects every write.
+    if (!password) {
+      return { error: 'Password is required. Find it in your invite message from your manager.', passwordRequired: true };
     }
-
-    if (!users || users.length === 0) {
-      return { error: 'No account found for this phone number. Ask your manager to register you first.' };
+    const { data, error: authErr } = await supabase.auth.signInWithPassword({
+      email: phoneToEmail(cleanPhone),
+      password,
+    });
+    if (authErr || !data?.user) {
+      const msg = authErr?.message ?? '';
+      if (/invalid login credentials/i.test(msg)) {
+        return fail('Wrong phone number or password. Ask your manager to resend your invite if needed.');
+      }
+      if (/email not confirmed/i.test(msg)) {
+        return fail('Account not yet activated. Open your activation link first, then sign in.');
+      }
+      return fail(msg || 'Login failed. Please try again.');
     }
-
-    const user = users[0] as AppUser;
-
-    // Verify the user has staff or manager role (POS is for staff/manager only)
-    if (user.role !== 'staff' && user.role !== 'manager') {
+    failCount = 0;
+    const userId = data.user.id;
+    // Enforce POS-only roles BEFORE accepting the session. A bad role
+    // signs straight back out so no session lingers.
+    const { data: prow, error: prowErr } = await supabase.from('users').select('*').eq('id', userId).single();
+    const roleUser = prow as AppUser | null;
+    if (prowErr || !roleUser || (roleUser.role !== 'staff' && roleUser.role !== 'manager') || !roleUser.branch_id) {
+      await supabase.auth.signOut();
+      setAuthUserId(null);
+      setProfile(null);
       return { error: 'This account does not have POS access.' };
     }
-
-    // Auto sign-in — LIMITED mode: with no Supabase Auth session the
-    // server rejects every synced write (RLS), so sales stay on-device
-    // until staff sign in with their activation link + password.
-    localStorage.setItem(SESSION_KEY, user.id);
-    setAuthUserId(user.id);
-    setProfile(user);
+    localStorage.setItem(SESSION_KEY, userId);
+    setAuthUserId(userId);
+    setProfile(roleUser);
     savePhone(cleanPhone);
-
-    return { error: null, limited: true };
+    return { error: null };
   }
 
   /** Activate POS access from an activation link token. */
@@ -178,43 +241,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Legacy Supabase lookup
-    const { data: users, error: queryErr } = await supabase
-      .from('users')
-      .select('*')
-      .eq('pos_activation_token', token)
-      .limit(1);
-
-    if (queryErr) {
-      console.error('Token lookup failed:', queryErr.message);
-      return { error: 'Unable to verify activation link. Please try again.' };
+    // Legacy path: single-use server activation. The RPC burns the token
+    // and returns the phone — then staff sign in WITH their password so
+    // they hold a real session ( anon table reads can't work under RLS).
+    const { data, error: rpcErr } = await supabase.rpc('activate_pos_account', { p_token: token });
+    if (rpcErr) {
+      console.error('Activation failed:', rpcErr.message);
+      return { error: /invalid|expired/i.test(rpcErr.message) ? rpcErr.message : 'Unable to verify activation link. Please try again.' };
     }
-
-    if (!users || users.length === 0) {
-      return { error: 'Invalid or expired activation link. Ask your manager for a new one.' };
-    }
-
-    const user = users[0] as AppUser;
-
-    // Mark POS as activated
-    const { error: updateErr } = await supabase
-      .from('users')
-      .update({ pos_activated: true })
-      .eq('id', user.id);
-
-    if (updateErr) {
-      console.error('Activation update failed:', updateErr.message);
-      return { error: 'Failed to activate POS access. Please try again.' };
-    }
-
-    // Auto sign-in after activation
-    const activatedUser = { ...user, pos_activated: true } as AppUser;
-    localStorage.setItem(SESSION_KEY, activatedUser.id);
-    setAuthUserId(activatedUser.id);
-    setProfile(activatedUser);
-    savePhone(activatedUser.phone ?? '');
-
-    return { error: null, user: activatedUser };
+    const phone = (data as { phone?: string } | null)?.phone ?? '';
+    if (phone) savePhone(phone);
+    // No auto sign-in: the password is required to create the session.
+    return { error: null, phone };
   }
 
   async function signOut() {

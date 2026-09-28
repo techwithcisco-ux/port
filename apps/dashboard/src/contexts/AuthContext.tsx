@@ -48,8 +48,10 @@ interface AuthState {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
-const SESSION_KEY = 'bp-session';
-const CREDS_KEY = 'bp-creds';
+// NOTE: sessions live ONLY in Supabase Auth storage (managed by
+// supabase-js). This app never keeps its own user-id shortcut or password
+// copy: a bare id in localStorage proves nothing and a stored password is
+// a theft waiting to happen. "Remember me" = Supabase's persisted session.
 
 function phoneToEmail(phone: string): string {
   const clean = phone.replace(/\s+/g, '').replace(/[^+\d]/g, '');
@@ -60,20 +62,9 @@ function normalizePhone(v: string): string {
   return v.replace(/\s+/g, '').replace(/[^+\d]/g, '');
 }
 
-export function saveCreds(phone: string, password: string) {
-  try { localStorage.setItem(CREDS_KEY, JSON.stringify({ phone, password })); } catch {}
-}
-
-export function loadSavedCredentials(): { phone: string; password: string } | null {
-  try {
-    const raw = localStorage.getItem(CREDS_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
-
-function clearCreds() {
-  localStorage.removeItem(CREDS_KEY);
-}
+// Login rate-limit: slow brute force on shared manager devices.
+let failCount = 0;
+let lockedUntil = 0;
 
 // ─── Context ─────────────────────────────────────────────────
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -93,19 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (error || !data) {
+        // No app row for this auth user (deleted, or signup RPC failed).
+        // Never synthesize a role here — a forged owner stub with an empty
+        // business_id would render owner screens with no data at best.
         console.error('loadProfile error:', error?.message);
-        // Profile doesn't exist yet (signup in progress). Build minimal from auth metadata.
-        const { data: authUser } = await supabase.auth.getUser();
-        const meta = authUser.user?.user_metadata;
-        return {
-          id: userId,
-          business_id: '',
-          branch_id: null,
-          role: 'owner',
-          name: meta?.name ?? meta?.phone ?? 'User',
-          phone: meta?.phone ?? null,
-          created_at: new Date().toISOString(),
-        };
+        return null;
       }
       return data as UserProfile;
     } catch (err) {
@@ -125,7 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           const userId = session.user.id;
-          localStorage.setItem(SESSION_KEY, userId);
           setAuthUserId(userId);
           const p = await loadProfile(userId);
           if (!cancelled) {
@@ -133,18 +115,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(false);
           }
         } else {
-          // No Supabase session. Check localStorage fallback.
-          const saved = localStorage.getItem(SESSION_KEY);
-          if (saved) {
-            setAuthUserId(saved);
-            const p = await loadProfile(saved);
-            if (!cancelled) {
-              setProfile(p);
-              setLoading(false);
-            }
-          } else {
-            if (!cancelled) setLoading(false);
-          }
+          // No Supabase session ⇒ logged out. A bare user id in storage
+          // is never trusted on its own (anyone can write localStorage).
+          if (!cancelled) setLoading(false);
         }
       } catch (err) {
         console.error('Auth init failed:', err);
@@ -159,13 +132,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (event: string, session: { user?: { id: string } } | null) => {
         if (event === 'SIGNED_IN' && session?.user) {
           const userId = session.user.id;
-          localStorage.setItem(SESSION_KEY, userId);
           setAuthUserId(userId);
           const p = await loadProfile(userId);
           setProfile(p);
         } else if (event === 'SIGNED_OUT') {
-          localStorage.removeItem(SESSION_KEY);
-          clearCreds();
           setAuthUserId(null);
           setProfile(null);
         }
@@ -186,6 +156,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!cleanPhone || !cleanPw) {
       return { error: 'Phone number and password are required.' };
     }
+    if (Date.now() < lockedUntil) {
+      return { error: 'Too many attempts. Wait a minute and try again.' };
+    }
+    const fail = (msg: string) => {
+      failCount += 1;
+      if (failCount >= 5) {
+        lockedUntil = Date.now() + 60_000;
+        failCount = 0;
+        return { error: 'Too many attempts. Wait a minute and try again.' };
+      }
+      return { error: msg };
+    };
 
     const email = phoneToEmail(cleanPhone);
 
@@ -197,45 +179,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (authErr) {
       const msg = authErr.message;
       if (msg.includes('Invalid login credentials')) {
-        return { error: 'Wrong phone number or password. Please check and try again.' };
+        return fail('Wrong phone number or password. Please check and try again.');
       }
       if (msg.includes('Email not confirmed')) {
-        // Auto-confirm and retry — handles existing users who signed up
-        // before auto_confirm_user was added, or where the RPC failed.
-        console.warn('Email not confirmed, auto-confirming and retrying...');
-        const { data: users } = await supabase.from('users').select('id').eq('phone', cleanPhone).limit(1);
-        if (users && users.length > 0) {
-          await supabase.rpc('auto_confirm_user', { p_user_id: users[0].id });
-        }
-        const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({ email, password: cleanPw });
-        if (retryErr || !retryData?.user) {
-          return { error: 'Account not confirmed. Please contact your administrator.' };
-        }
-        const userId = retryData.user.id;
-        localStorage.setItem(SESSION_KEY, userId);
-        setAuthUserId(userId);
-        const p = await loadProfile(userId);
-        setProfile(p);
-        saveCreds(cleanPhone, cleanPw);
-        return { error: null };
+        // BranchPort logins are phone@branchport.app — a fake domain whose
+        // mailbox never exists — so "Confirm email" must stay OFF in
+        // Supabase Auth settings. If it is ever ON, nobody can sign in and
+        // no client trick can fix that; say so plainly.
+        return fail('Account not confirmed. Ask your administrator to switch OFF “Confirm email” in Supabase Auth settings, then try again.');
       }
       if (msg.includes('too many')) {
         return { error: 'Too many attempts. Please wait a minute and try again.' };
       }
-      return { error: msg || 'Login failed. Please try again.' };
+      return fail(msg || 'Login failed. Please try again.');
     }
 
     if (!data.user) {
-      return { error: 'Login failed. Please try again.' };
+      return fail('Login failed. Please try again.');
     }
 
-    // Success
+    // Success — the session is persisted by supabase-js itself.
+    failCount = 0;
     const userId = data.user.id;
-    localStorage.setItem(SESSION_KEY, userId);
     setAuthUserId(userId);
     const p = await loadProfile(userId);
     setProfile(p);
-    saveCreds(cleanPhone, cleanPw);
 
     return { error: null };
   }, [loadProfile]);
@@ -283,9 +251,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const newUserId = authData.user.id;
 
-    // Step 1.5: Auto-confirm the user's email so they can sign in immediately.
-    // BranchPort uses phone@branchport.app — a fake email domain — so the
-    // confirmation email never arrives. We confirm the user via RPC.
+    // With “Confirm email” OFF (required — see login), signUp may already
+    // carry a session. Otherwise sign in to get one BEFORE any RPC: the
+    // hardened RPCs (0023) only serve the caller themself.
+    let sessionUserId: string | null = authData.session?.user.id ?? null;
+    if (!sessionUserId) {
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+        email,
+        password: params.password,
+      });
+      if (signInErr || !signInData.session) {
+        return { error: 'Account created, but sign-in failed. Please sign in with your phone + password.' };
+      }
+      sessionUserId = signInData.session.user.id;
+    }
+    if (sessionUserId !== newUserId) {
+      await supabase.auth.signOut();
+      return { error: 'Signup mismatch. Please sign in.' };
+    }
+
+    // Self-confirm (succeeds only for self under 0023; warn-and-continue
+    // otherwise — sign-in already proved the account is usable).
     const { error: confirmErr } = await supabase.rpc('auto_confirm_user', {
       p_user_id: newUserId,
     });
@@ -293,7 +279,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn('auto_confirm_user failed:', confirmErr.message);
     }
 
-    // Step 2: Create business + user via RPC (bypasses RLS, works as anon)
+    // Create business + owner row. Failure here is FATAL — never fake a
+    // login without a business (the old code did, leaving RLS dead).
     const { error: rpcErr } = await supabase.rpc('signup_create_owner', {
       p_auth_user_id: newUserId,
       p_name: cleanName,
@@ -303,30 +290,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (rpcErr) {
       console.error('signup_create_owner RPC failed:', rpcErr.message);
+      await supabase.auth.signOut();
+      setAuthUserId(null);
+      setProfile(null);
+      return { error: `Account created, but setup failed: ${rpcErr.message}. Please contact support.` };
     }
 
-    // Step 3: Sign in to get an active session
-    const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-      email,
-      password: params.password,
-    });
-
-    if (signInErr) {
-      console.warn('Post-signup signIn failed:', signInErr.message);
-      localStorage.setItem(SESSION_KEY, newUserId);
-      setAuthUserId(newUserId);
-      const p = await loadProfile(newUserId);
-      setProfile(p);
-      return { error: null };
-    }
-
-    // Full success — session active
-    const userId = signInData.session.user.id;
-    localStorage.setItem(SESSION_KEY, userId);
-    setAuthUserId(userId);
-    const p = await loadProfile(userId);
+    setAuthUserId(newUserId);
+    const p = await loadProfile(newUserId);
     setProfile(p);
-    saveCreds(cleanPhone, params.password);
 
     return { error: null };
   }, [loadProfile]);
@@ -334,8 +306,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Sign Out ──
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem(SESSION_KEY);
-    clearCreds();
     setAuthUserId(null);
     setProfile(null);
   }, []);

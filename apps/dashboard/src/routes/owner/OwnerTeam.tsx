@@ -143,17 +143,17 @@ export default function OwnerTeam() {
     setVisiblePasswords((prev) => ({ ...prev, [newUserId]: pw }));
 
     // Auto-open WhatsApp
-    setTimeout(() => openWhatsApp(cleanPhone, name.trim(), activationUrl), 300);
+    setTimeout(() => openWhatsApp(cleanPhone, name.trim(), activationUrl, pw), 300);
 
     setName('');
     setPhone('');
     refresh();
   }
 
-  function openWhatsApp(phone: string, name: string, url: string) {
-    const clean = phone.replace(/s+/g, '').replace(/[^+\d]/g, '');
+  function openWhatsApp(phone: string, name: string, url: string, pw?: string) {
+    const clean = phone.replace(/\s+/g, '').replace(/[^+\d]/g, '');
     const full = clean.startsWith('+') ? clean.slice(1) : clean.startsWith('0') ? '233' + clean.slice(1) : clean;
-    const msg = `Hi ${name}, you've been added to BranchPort POS!\n\nTap the link to activate your POS access:\n${url}\n\nAfter activating, sign in with your phone number — no password needed.`;
+    const msg = `Hi ${name}, you've been added to BranchPort POS!\n\nSign in on the POS app with your phone number${pw ? ` + this password: ${pw}` : ''} (keep it safe).\n\n${url}`;
     window.open(`https://wa.me/${full}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
   }
 

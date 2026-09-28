@@ -171,9 +171,7 @@ export default function Team() {
       'Tap the link below to activate your POS access:',
       activationUrl,
       '',
-      isApiMode && pw
-        ? `Your POS password is: ${pw} (keep it safe). Sign in with your phone number + this password.`
-        : 'After activating, sign in with your phone number — no password needed.',
+      `Your POS password is: ${pw} (keep it safe). Sign in on the POS app with your phone number + this password.`,
     ].join('\n');
     // Open WhatsApp directly to this person's number
     const waUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`;

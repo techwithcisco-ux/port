@@ -35,9 +35,9 @@ export default function Activate() {
         setMessage(result.error);
       } else {
         setStatus('success');
-        setMessage(`Welcome, ${result.user?.name ?? 'there'}! Your POS access is now active.`);
-        // Redirect to the sell screen after a brief moment
-        setTimeout(() => navigate('/', { replace: true }), 1500);
+        setMessage('Your POS access is now active! Sign in with your phone number + the password from your invite message.');
+        // Activation grants no session — go to login, not the till.
+        setTimeout(() => navigate('/login', { replace: true }), 2000);
       }
     });
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -67,7 +67,7 @@ export default function Activate() {
               <span className="text-3xl">✓</span>
             </div>
             <p className="text-sm text-green-700 font-medium">{message}</p>
-            <p className="text-xs text-gray-400">Redirecting you to the till…</p>
+            <p className="text-xs text-gray-400">Taking you to sign in…</p>
           </>
         )}
 

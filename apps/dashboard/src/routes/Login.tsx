@@ -1,6 +1,6 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth, loadSavedCredentials } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { AdinkraTrust, IconPhone } from '../components/Icons';
 
 export default function Login() {
@@ -10,9 +10,10 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
 
-  // Auto-fill from URL params (invite link) or saved credentials
+  // Auto-fill from URL params (staff invite link). The password lives only
+  // in this form's state — it is never written to storage. Sessions persist
+  // via Supabase Auth, so there is no "remember me" toggle to maintain.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlPhone = params.get('phone');
@@ -20,16 +21,8 @@ export default function Login() {
     if (urlPhone && urlPassword) {
       setPhone(urlPhone);
       setPassword(urlPassword);
-      setRememberMe(true);
       // Clean the URL so credentials aren't visible in the address bar
       window.history.replaceState({}, '', window.location.pathname);
-      return;
-    }
-    const saved = loadSavedCredentials();
-    if (saved) {
-      setPhone(saved.phone);
-      setPassword(saved.password);
-      setRememberMe(true);
     }
   }, []);
 
@@ -135,16 +128,6 @@ export default function Login() {
               />
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-              />
-              <span className="text-sm text-gray-600">Remember my login</span>
-            </label>
-
             {error && <p className="text-sm text-red-800">{error}</p>}
 
             <button type="submit" disabled={submitting} className="btn btn-primary w-full" style={{background: 'var(--ghana-green)'}}>
@@ -164,7 +147,7 @@ export default function Login() {
               if (!window.confirm('This will delete ALL saved data on this device (accounts, sales, everything). Continue?')) return;
               const keys = Object.keys(localStorage);
               for (const k of keys) {
-                if (k.startsWith('branchport')) localStorage.removeItem(k);
+                if (k.startsWith('branchport') || k.startsWith('sb-')) localStorage.removeItem(k);
               }
               sessionStorage.clear();
               alert('All data cleared! Page will now refresh.');

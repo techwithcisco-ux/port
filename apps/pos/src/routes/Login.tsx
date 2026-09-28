@@ -7,8 +7,8 @@ export default function Login() {
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [needPassword, setNeedPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Activation link paste state
@@ -24,26 +24,22 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    // Pause on the warning when sync is limited so staff actually read it.
-    if (authUserId && profile?.role === 'staff' && profile.branch_id && !limitedNotice) {
+    if (authUserId && (profile?.role === 'staff' || profile?.role === 'manager') && profile.branch_id) {
       navigate('/', { replace: true });
     }
-  }, [authUserId, profile, navigate, limitedNotice]);
-
-  const [limitedNotice, setLimitedNotice] = useState(false);
+  }, [authUserId, profile, navigate]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
-    setLimitedNotice(false);
+    setNotice(null);
 
-    const { error, passwordRequired, limited } = await signInWithPhone(phone, password || undefined);
+    const { error } = await signInWithPhone(phone, password || undefined);
 
     setSubmitting(false);
-    if (passwordRequired) setNeedPassword(true);
     if (error) setError(error);
-    else if (limited) setLimitedNotice(true);
+    // Success navigates via the effect above.
   }
 
   // Handle pasted activation link
@@ -63,16 +59,21 @@ export default function Login() {
         return;
       }
 
-      // Activate POS access from the token (handled by AuthContext)
+      // Activate POS access from the token (handled by AuthContext).
+      // Activation is single-use and grants no session — staff then sign
+      // in below with the password from their invite message.
       const result = await activateAccount(token);
-      if ('error' in result) {
+      if (result.error) {
         setActivationError(result.error);
         setActivating(false);
         return;
       }
 
-      // Navigate home — activation auto signs in via AuthContext
-      navigate('/', { replace: true });
+      setActivating(false);
+      setShowActivation(false);
+      setActivationUrl('');
+      if (result.phone) setPhone(result.phone);
+      setNotice('Activated! Now sign in below with your phone number + the password from your invite message.');
     } catch {
       setActivationError('Invalid URL. Paste the full activation link from WhatsApp.');
     }
@@ -119,27 +120,17 @@ export default function Login() {
             <p className="text-xs text-gray-400 mt-2 text-center">Your manager registered this number for you</p>
           </div>
 
-          {(needPassword || password) && (
-            <div>
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                className="w-full px-4 py-4 text-lg border-2 border-gray-200 rounded-2xl bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white transition-colors"
-              />
-            </div>
-          )}
-          {!needPassword && !password && (
-            <button
-              type="button"
-              onClick={() => setNeedPassword(true)}
-              className="w-full text-center text-xs text-gray-400 hover:text-gray-600"
-            >
-              Have a password? Tap to enter it
-            </button>
-          )}
+          <div>
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password (from your invite message)"
+              className="w-full px-4 py-4 text-lg border-2 border-gray-200 rounded-2xl bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white transition-colors"
+            />
+          </div>
 
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
@@ -148,23 +139,10 @@ export default function Login() {
             </div>
           )}
 
-          {limitedNotice && (
-            <div className="space-y-3">
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                <span className="text-amber-500">⚠</span>
-                <p className="text-sm text-amber-800">
-                  Signed in with limited sync — sales will stay on this device only.
-                  Ask your manager for your activation link + password to enable syncing.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/', { replace: true })}
-                className="w-full text-white rounded-2xl py-3 font-bold"
-                style={{ background: 'var(--ghana-green)' }}
-              >
-                Continue to till →
-              </button>
+          {notice && (
+            <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+              <span className="text-green-600">✓</span>
+              <p className="text-sm text-green-800">{notice}</p>
             </div>
           )}
 

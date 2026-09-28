@@ -102,7 +102,8 @@ app.post('/auth/pos-activate', async (req, res) => {
     const r = await query('SELECT * FROM users WHERE pos_activation_token = $1 LIMIT 1', [String(token)]);
     const user = r.rows[0];
     if (!user) return res.status(404).json({ error: 'Invalid or expired activation link.' });
-    await query('UPDATE users SET pos_activated = true WHERE id = $1', [user.id]);
+    // Single-use: burn the token so a leaked link can't be replayed.
+    await query('UPDATE users SET pos_activated = true, pos_activation_token = NULL WHERE id = $1', [user.id]);
     const full = await loadUserById(user.id);
     res.json({ token: signToken(full), user: publicUser(full) });
   } catch (e) {

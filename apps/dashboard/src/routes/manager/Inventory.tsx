@@ -21,8 +21,8 @@ export default function Inventory() {
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.from('products').select('*').then(({ data }) => setProducts((data as Product[]) ?? []));
-    supabase.from('suppliers').select('*').then(({ data }) => setSuppliers((data as Supplier[]) ?? []));
+    supabase.from('products').select('*').then(({ data }: any) => setProducts((data as Product[]) ?? []));
+    supabase.from('suppliers').select('*').then(({ data }: any) => setSuppliers((data as Supplier[]) ?? []));
   }, []);
 
   async function handleSubmit(e: FormEvent) {

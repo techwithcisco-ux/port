@@ -27,6 +27,8 @@ export default function AuditLog() {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [rawOpen, setRawOpen] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [limit, setLimit] = useState(200);
 
   useEffect(() => {
     Promise.all([
@@ -45,10 +47,15 @@ export default function AuditLog() {
   }, []);
 
   useEffect(() => {
+    setLimit(200);
+  }, [entityFilter, actorFilter, from, to]);
+
+  useEffect(() => {
     let query = supabase
       .from('audit_events')
       .select('*')
-      .order('occurred_at', { ascending: false });
+      .order('occurred_at', { ascending: false })
+      .limit(limit);
 
     if (entityFilter !== 'all') query = query.eq('entity_type', entityFilter);
     if (actorFilter !== 'all') query = query.eq('actor_user_id', actorFilter);
@@ -56,13 +63,21 @@ export default function AuditLog() {
     if (to) query = query.lte('occurred_at', new Date(new Date(to).setHours(23, 59, 59, 999)).toISOString());
 
     setLoading(true);
-    query.then(({ data, error }) => {
-      if (error) console.error(error.message);
+    setLoadError(null);
+    query.then(({ data, error }: any) => {
+      if (error) {
+        console.error(error.message);
+        setLoadError(
+          /forbidden|owner only|permission/i.test(error.message)
+            ? 'The audit log is owner-only and this account was denied access.'
+            : `Could not load the audit log: ${error.message}`,
+        );
+      }
       setEvents((data as AuditEvent[]) ?? []);
       setLoading(false);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entityFilter, actorFilter, from, to]);
+  }, [entityFilter, actorFilter, from, to, limit]);
 
   const ctx: NameCtx = {
     product: (id) => names.products.find((x) => x.id === id)?.name ?? '—',
@@ -170,12 +185,20 @@ export default function AuditLog() {
         </div>
       </div>
 
+      {loadError && (
+        <div className="card p-4 mb-3 border-red-200 bg-red-50">
+          <p className="text-sm text-red-700">{loadError}</p>
+          <p className="text-xs text-red-500 mt-1">Check the API connection and that this account has the owner role.</p>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         {loading ? (
           <p className="p-4 text-gray-500 text-sm">Loading…</p>
         ) : visibleEvents.length === 0 ? (
           <p className="p-4 text-gray-500 text-sm">No events match the current filters or search.</p>
         ) : (
+          <>
           <ul className="divide-y">
             {visibleEvents.map((e) => {
               const diff = humanizeDiff(e);
@@ -251,6 +274,15 @@ export default function AuditLog() {
               );
             })}
           </ul>
+          {events.length >= limit && (
+            <button
+              onClick={() => setLimit((n) => n + 200)}
+              className="w-full py-3 text-sm text-gray-600 hover:bg-gray-50 border-t font-medium"
+            >
+              Load more ({events.length} shown)
+            </button>
+          )}
+          </>
         )}
       </div>
     </DashboardLayout>

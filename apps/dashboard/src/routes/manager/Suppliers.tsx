@@ -97,13 +97,16 @@ export default function Suppliers() {
       setPayBusy(false);
       return;
     }
+    // business_id is required by the payments_insert RLS policy — without
+    // it Postgres rejects the row ("violates row-level security policy").
     const { error } = await supabase.from('supplier_payments').insert([
       {
+        business_id: profile?.business_id,
         supplier_id: supplierId,
         amount,
         note: payNote.trim() || null,
         paid_at: new Date().toISOString(),
-        created_by: authUserId ?? undefined,
+        created_by: profile?.id ?? authUserId,
       },
     ]);
     setPayBusy(false);
@@ -118,13 +121,17 @@ export default function Suppliers() {
 
   async function handleConfirm(supplierId: string) {
     setStatus(null);
+    // business_id is required by the reconciliations_insert RLS policy —
+    // without it Postgres rejects the row ("violates row-level security
+    // policy for table supplier_reconciliations").
     const { error } = await supabase.from('supplier_reconciliations').insert([
       {
+        business_id: profile?.business_id,
         supplier_id: supplierId,
         status: 'confirmed',
         note: null,
         reconciled_at: new Date().toISOString(),
-        created_by: authUserId ?? undefined,
+        created_by: profile?.id ?? authUserId,
       },
     ]);
     if (error) setStatus(`Could not confirm: ${error.message}`);

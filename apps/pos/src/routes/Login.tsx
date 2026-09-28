@@ -6,6 +6,8 @@ export default function Login() {
   const { signInWithPhone, authUserId, profile, activateAccount } = useAuth();
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [needPassword, setNeedPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -22,20 +24,26 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    if (authUserId && profile?.role === 'staff' && profile.branch_id) {
+    // Pause on the warning when sync is limited so staff actually read it.
+    if (authUserId && profile?.role === 'staff' && profile.branch_id && !limitedNotice) {
       navigate('/', { replace: true });
     }
-  }, [authUserId, profile, navigate]);
+  }, [authUserId, profile, navigate, limitedNotice]);
+
+  const [limitedNotice, setLimitedNotice] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setLimitedNotice(false);
 
-    const { error } = await signInWithPhone(phone);
+    const { error, passwordRequired, limited } = await signInWithPhone(phone, password || undefined);
 
     setSubmitting(false);
+    if (passwordRequired) setNeedPassword(true);
     if (error) setError(error);
+    else if (limited) setLimitedNotice(true);
   }
 
   // Handle pasted activation link
@@ -111,10 +119,52 @@ export default function Login() {
             <p className="text-xs text-gray-400 mt-2 text-center">Your manager registered this number for you</p>
           </div>
 
+          {(needPassword || password) && (
+            <div>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                className="w-full px-4 py-4 text-lg border-2 border-gray-200 rounded-2xl bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white transition-colors"
+              />
+            </div>
+          )}
+          {!needPassword && !password && (
+            <button
+              type="button"
+              onClick={() => setNeedPassword(true)}
+              className="w-full text-center text-xs text-gray-400 hover:text-gray-600"
+            >
+              Have a password? Tap to enter it
+            </button>
+          )}
+
           {error && (
             <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
               <span className="text-red-500">⚠</span>
               <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          {limitedNotice && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                <span className="text-amber-500">⚠</span>
+                <p className="text-sm text-amber-800">
+                  Signed in with limited sync — sales will stay on this device only.
+                  Ask your manager for your activation link + password to enable syncing.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/', { replace: true })}
+                className="w-full text-white rounded-2xl py-3 font-bold"
+                style={{ background: 'var(--ghana-green)' }}
+              >
+                Continue to till →
+              </button>
             </div>
           )}
 

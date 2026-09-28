@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { supabase, isApiMode, apiBaseUrl } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, AppUser } from '@branchport/shared';
 
@@ -88,29 +88,48 @@ export default function Team() {
 
     const pw = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
     const cleanPhone = phone.trim().replace(/\s+/g, '').replace(/[^+\d]/g, '');
-    const email = `${cleanPhone}@branchport.app`;
 
-    const { data: authData, error: authErr } = await supabase.auth.signUp({
-      email,
-      password: pw,
-      options: { data: { name: name.trim(), phone: cleanPhone, role: 'staff' } },
-    });
+    let newUserId: string;
+    if (isApiMode) {
+      // Render API: single call creates the staff row with a bcrypt
+      // password (replaces auth.signUp + provision_staff_user).
+      const token = (() => { try { return localStorage.getItem('bp-session-token'); } catch { return null; } })();
+      const res = await fetch(`${apiBaseUrl}/auth/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ name: name.trim(), phone: cleanPhone, password: pw, branch_id: branchId, role: 'staff' }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setBusy(false);
+        setError(body.error || 'Could not create staff.');
+        return;
+      }
+      newUserId = body.user.id;
+    } else {
+      const email = `${cleanPhone}@branchport.app`;
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email,
+        password: pw,
+        options: { data: { name: name.trim(), phone: cleanPhone, role: 'staff' } },
+      });
 
-    if (authErr) {
-      setBusy(false);
-      setError(authErr.message.includes('already registered') ? 'A user with this phone number already exists.' : `Auth error: ${authErr.message}`);
-      return;
+      if (authErr) {
+        setBusy(false);
+        setError(authErr.message.includes('already registered') ? 'A user with this phone number already exists.' : `Auth error: ${authErr.message}`);
+        return;
+      }
+      if (!authData.user) { setBusy(false); setError('Failed to create user.'); return; }
+      newUserId = authData.user.id;
+      const { error: rpcErr } = await supabase.rpc('provision_staff_user', {
+        p_auth_user_id: newUserId,
+        p_business_id: profile.business_id,
+        p_branch_id: branchId,
+        p_name: name.trim(),
+        p_phone: cleanPhone,
+      });
+      if (rpcErr) console.warn('provision_staff_user RPC failed:', rpcErr.message);
     }
-    if (!authData.user) { setBusy(false); setError('Failed to create user.'); return; }
-    const newUserId = authData.user.id;
-    const { error: rpcErr } = await supabase.rpc('provision_staff_user', {
-      p_auth_user_id: newUserId,
-      p_business_id: profile.business_id,
-      p_branch_id: branchId,
-      p_name: name.trim(),
-      p_phone: cleanPhone,
-    });
-    if (rpcErr) console.warn('provision_staff_user RPC failed:', rpcErr.message);
 
     setBusy(false);
     const activationUrl = `${window.location.origin}/login?phone=${encodeURIComponent(cleanPhone)}&password=${encodeURIComponent(pw)}`;
@@ -124,7 +143,7 @@ export default function Team() {
     });
     setVisiblePasswords((prev) => ({ ...prev, [newUserId]: pw }));
 
-    setTimeout(() => openWhatsApp(cleanPhone, name.trim(), activationUrl), 300);
+    setTimeout(() => openWhatsApp(cleanPhone, name.trim(), activationUrl, pw), 300);
 
     setName('');
     setPhone('');
@@ -142,7 +161,7 @@ export default function Team() {
     }
   }
 
-  function openWhatsApp(phone: string, name: string, activationUrl: string) {
+  function openWhatsApp(phone: string, name: string, activationUrl: string, pw?: string) {
     const cleanPhone = phone.replace(/\s+/g, '').replace(/[^+\d]/g, '');
     // Normalize: if it starts with 0, assume Ghana (+233)
     const fullPhone = cleanPhone.startsWith('+') ? cleanPhone.slice(1) : cleanPhone.startsWith('0') ? '233' + cleanPhone.slice(1) : cleanPhone;
@@ -152,7 +171,9 @@ export default function Team() {
       'Tap the link below to activate your POS access:',
       activationUrl,
       '',
-      'After activating, sign in with your phone number — no password needed.',
+      isApiMode && pw
+        ? `Your POS password is: ${pw} (keep it safe). Sign in with your phone number + this password.`
+        : 'After activating, sign in with your phone number — no password needed.',
     ].join('\n');
     // Open WhatsApp directly to this person's number
     const waUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`;

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // PWA config makes the POS installable on a branch's Android phone via
@@ -42,6 +43,11 @@ export default defineConfig(({ mode }) => {
     ],
     server: {
       port: 5174,
+    },
+    resolve: {
+      alias: {
+        '@branchport/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
+      },
     },
   };
 });

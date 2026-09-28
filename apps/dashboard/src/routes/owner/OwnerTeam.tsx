@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { supabase, isApiMode, apiBaseUrl } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, AppUser } from '@branchport/shared';
 
@@ -74,43 +74,60 @@ export default function OwnerTeam() {
     // Generate a random password for the staff member
     const pw = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
     const cleanPhone = phone.trim().replace(/\s+/g, '').replace(/[^+\d]/g, '');
-    const email = `${cleanPhone}@branchport.app`;
 
-    // 1. Create Supabase auth user
-    const { data: authData, error: authErr } = await supabase.auth.signUp({
-      email,
-      password: pw,
-      options: { data: { name: name.trim(), phone: cleanPhone, role: 'staff' } },
-    });
-
-    if (authErr) {
-      setBusy(false);
-      if (authErr.message.includes('already registered')) {
-        setError('A user with this phone number already exists.');
-      } else {
-        setError(`Auth error: ${authErr.message}`);
+    let newUserId: string;
+    if (isApiMode) {
+      const token = (() => { try { return localStorage.getItem('bp-session-token'); } catch { return null; } })();
+      const res = await fetch(`${apiBaseUrl}/auth/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ name: name.trim(), phone: cleanPhone, password: pw, branch_id: branchId, role: 'staff' }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setBusy(false);
+        setError(body.error || 'Could not create staff.');
+        return;
       }
-      return;
-    }
+      newUserId = body.user.id;
+    } else {
+      const email = `${cleanPhone}@branchport.app`;
+      // 1. Create Supabase auth user
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email,
+        password: pw,
+        options: { data: { name: name.trim(), phone: cleanPhone, role: 'staff' } },
+      });
 
-    if (!authData.user) {
-      setBusy(false);
-      setError('Failed to create user.');
-      return;
-    }
-    const newUserId = authData.user.id;
+      if (authErr) {
+        setBusy(false);
+        if (authErr.message.includes('already registered')) {
+          setError('A user with this phone number already exists.');
+        } else {
+          setError(`Auth error: ${authErr.message}`);
+        }
+        return;
+      }
 
-    // 2. Create user record via RPC
-    const { error: rpcErr } = await supabase.rpc('provision_staff_user', {
-      p_auth_user_id: newUserId,
-      p_business_id: profile.business_id,
-      p_branch_id: branchId,
-      p_name: name.trim(),
-      p_phone: cleanPhone,
-    });
+      if (!authData.user) {
+        setBusy(false);
+        setError('Failed to create user.');
+        return;
+      }
+      newUserId = authData.user.id;
 
-    if (rpcErr) {
-      console.warn('provision_staff_user RPC failed:', rpcErr.message);
+      // 2. Create user record via RPC
+      const { error: rpcErr } = await supabase.rpc('provision_staff_user', {
+        p_auth_user_id: newUserId,
+        p_business_id: profile.business_id,
+        p_branch_id: branchId,
+        p_name: name.trim(),
+        p_phone: cleanPhone,
+      });
+
+      if (rpcErr) {
+        console.warn('provision_staff_user RPC failed:', rpcErr.message);
+      }
     }
 
     setBusy(false);

@@ -73,7 +73,7 @@ export default function SalesReport() {
     if (branchId !== 'all') q = q.eq('branch_id', branchId);
     if (productId !== 'all') q = q.eq('product_id', productId);
 
-    q.then(({ data, error }) => {
+    q.then(({ data, error }: any) => {
       if (error) console.error(error.message);
       const rows = ((data as Sale[]) ?? []).map((s) => ({
         id: s.id,

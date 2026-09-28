@@ -9,6 +9,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { createApiClient } from '@branchport/shared';
 import type {
   Business,
   Branch,
@@ -17,18 +18,28 @@ import type {
   AppUser,
 } from '@branchport/shared';
 
-// Real Supabase client for production
-const url = import.meta.env.VITE_SUPABASE_URL;
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Render API (VITE_API_URL) takes precedence; Supabase is the legacy fallback.
+// NOTE: market reads are cross-business aggregates. In API mode the caller
+// must sign in once via MarketLogin with an owner account; the token is
+// attached automatically by the client below.
+const apiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '';
 
-if (!url || !key) {
-  throw new Error(
-    'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY env vars. '
-    + 'Copy .env.example to .env and fill in your Supabase project values.'
-  );
+function buildReader() {
+  if (apiBaseUrl) {
+    return createApiClient({ baseUrl: apiBaseUrl, tokenKey: 'bp-market-token', userKey: 'bp-market-user' });
+  }
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error(
+      'Missing VITE_API_URL (Render API) or VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. '
+      + 'Copy .env.example to .env and fill in one backend.'
+    );
+  }
+  return createClient(url, key);
 }
 
-const supabase = createClient(url, key);
+const supabase = buildReader();
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

@@ -1,15 +1,14 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { AppUser } from '@branchport/shared';
-import { supabase } from '../lib/supabase';
+import { supabase, isApiMode, apiBaseUrl } from '../lib/supabase';
 
 interface AuthState {
   loading: boolean;
   authUserId: string | null;
   profile: AppUser | null;
-  /** Phone-only sign-in — no password required. The owner activates POS
-   *  access via a unique link; after activation the staff member logs in
-   *  with just their phone number. */
-  signInWithPhone: (phone: string) => Promise<{ error: string | null }>;
+  /** POS sign-in — phone + password on the Render API (password optional
+   *  for legacy staff rows created before passwords existed). */
+  signInWithPhone: (phone: string, password?: string) => Promise<{ error: string | null; passwordRequired?: boolean; limited?: boolean }>;
   /** Activate POS access from an activation link token. */
   activateAccount: (token: string) => Promise<{ error: string | null; user?: AppUser }>;
   signOut: () => Promise<void>;
@@ -56,6 +55,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Render API mode: the JWT + profile are cached by the login calls
+    // below, so boot straight from cache (no extra round-trip).
+    if (isApiMode) {
+      try {
+        const raw = localStorage.getItem('branchport-pos-user');
+        if (raw) {
+          const cached = JSON.parse(raw) as AppUser;
+          setAuthUserId(cached.id);
+          setProfile(cached);
+          setLoading(false);
+          return;
+        }
+      } catch { /* corrupt cache — fall through to login */ }
+      setLoading(false);
+      return;
+    }
     const savedSession = localStorage.getItem(SESSION_KEY);
     if (savedSession) {
       const userId = savedSession;
@@ -67,16 +82,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  /** Phone-only sign-in for POS. No password needed — the owner already
-   *  activated this user's POS access via a unique link. Queries Supabase
-   *  directly for the user by phone number. */
-  async function signInWithPhone(phone: string) {
+  /** POS sign-in. Render API path uses phone + password (JWT); legacy
+   *  Supabase path keeps the original passwordless phone lookup. */
+  async function signInWithPhone(phone: string, password?: string) {
     const cleanPhone = normalisePhone(phone);
     if (!cleanPhone) {
       return { error: 'Phone number is required.' };
     }
 
-    // Look up user by phone in Supabase
+    if (isApiMode) {
+      try {
+        const res = await fetch(`${apiBaseUrl}/auth/pos-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: cleanPhone, password }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (body.passwordRequired) return { error: 'This account needs a password — enter it below.', passwordRequired: true };
+          return { error: body.error || 'Unable to verify phone number. Please try again.' };
+        }
+        // Persist the JWT where the apiClient data layer expects it,
+        // plus the legacy session key the rest of the app reads.
+        try {
+          localStorage.setItem('branchport-pos-token', body.token);
+          localStorage.setItem('branchport-pos-user', JSON.stringify(body.user));
+        } catch { /* quota */ }
+        localStorage.setItem(SESSION_KEY, body.user.id);
+        setAuthUserId(body.user.id);
+        setProfile(body.user as AppUser);
+        savePhone(cleanPhone);
+        return { error: null };
+      } catch (e) {
+        console.error('POS login failed:', (e as Error).message);
+        return { error: 'Unable to reach the server. Check your connection.' };
+      }
+    }
+
+    // Legacy Supabase passwordless lookup
     const { data: users, error: queryErr } = await supabase
       .from('users')
       .select('*')
@@ -99,19 +142,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: 'This account does not have POS access.' };
     }
 
-    // Auto sign-in
+    // Auto sign-in — LIMITED mode: with no Supabase Auth session the
+    // server rejects every synced write (RLS), so sales stay on-device
+    // until staff sign in with their activation link + password.
     localStorage.setItem(SESSION_KEY, user.id);
     setAuthUserId(user.id);
     setProfile(user);
     savePhone(cleanPhone);
 
-    return { error: null };
+    return { error: null, limited: true };
   }
 
-  /** Activate POS access from an activation link token.
-   *  Looks up the user by their activation token in Supabase. */
+  /** Activate POS access from an activation link token. */
   async function activateAccount(token: string) {
-    // Look up user by activation token
+    if (isApiMode) {
+      try {
+        const res = await fetch(`${apiBaseUrl}/auth/pos-activate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return { error: body.error || 'Invalid or expired activation link.' };
+        try {
+          localStorage.setItem('branchport-pos-token', body.token);
+          localStorage.setItem('branchport-pos-user', JSON.stringify(body.user));
+        } catch { /* quota */ }
+        localStorage.setItem(SESSION_KEY, body.user.id);
+        setAuthUserId(body.user.id);
+        setProfile(body.user as AppUser);
+        savePhone(body.user.phone ?? '');
+        return { error: null, user: body.user as AppUser };
+      } catch {
+        return { error: 'Unable to verify activation link. Please try again.' };
+      }
+    }
+
+    // Legacy Supabase lookup
     const { data: users, error: queryErr } = await supabase
       .from('users')
       .select('*')
@@ -152,6 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     localStorage.removeItem(SESSION_KEY);
+    try {
+      localStorage.removeItem('branchport-pos-token');
+      localStorage.removeItem('branchport-pos-user');
+    } catch { /* noop */ }
     clearSavedPhone();
     setAuthUserId(null);
     setProfile(null);

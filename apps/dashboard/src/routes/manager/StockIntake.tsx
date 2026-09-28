@@ -4,6 +4,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Product, Supplier, ProductVariant, InventoryIntake } from '@branchport/shared';
+import { fileToBase64Limited, isMissingImageColumnError } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
 import { AdinkraStock, IconBox } from '../../components/Icons';
 import { GyeNyame, Nsoromma, GhanaFlagStripe } from '../../components/AdinkraSymbols';
@@ -79,33 +80,11 @@ function createEmptyIntake(): IntakeDraft {
 }
 
 /**
- * Convert a File to a base64-encoded string, resized to max 400px.
+ * Product photos funnel through the shared limiter (800px, ~500KB max)
+ * so Render Postgres TEXT rows stay small.
  */
 function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const max = 400;
-        let w = img.width;
-        let h = img.height;
-        if (w > max || h > max) {
-          if (w > h) { h = Math.round(h * max / w); w = max; }
-          else { w = Math.round(w * max / h); h = max; }
-        }
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
-      };
-      img.onerror = reject;
-      img.src = reader.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  return fileToBase64Limited(file);
 }
 
 function recalcVariant(v: VariantDraft): VariantDraft {
@@ -123,6 +102,10 @@ export default function StockIntake() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Which photo is being resized right now (draft key or 'edit') — blocks
+  // Save while a photo is still processing so a half-picked image can't be
+  // saved, and stops users hammering the picker while it works.
+  const [imageBusy, setImageBusy] = useState<string | null>(null);
 
   // Data
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -263,23 +246,28 @@ export default function StockIntake() {
     if (!profile) return;
     setError(null); setStatus(null); setSaving(true);
 
+    const failures: string[] = [];
+    let saved = 0;
+    let photoWarning = false;
+
     for (const draft of intakeDrafts) {
       const productName = draft.productName.trim();
-      if (!productName) { setError('Every product needs a name.'); setSaving(false); return; }
+      if (!productName) { failures.push('A product is missing its name.'); continue; }
 
       const validVariants = draft.variants.filter((v) => v.name.trim() && Number(v.quantity) > 0);
       if (validVariants.length === 0) {
-        setError(`"${productName}" needs a unit name and quantity.`);
-        setSaving(false);
-        return;
+        failures.push(`"${productName}" needs a unit name and quantity.`);
+        continue;
       }
 
+      let draftValid = true;
       for (const v of validVariants) {
         const totalCost = Number(v.totalCost) || 0;
         const quantity = Number(v.quantity) || 0;
-        if (totalCost < 0) { setError(`"${v.name}" total cost can't be negative.`); setSaving(false); return; }
-        if (quantity <= 0) { setError(`"${v.name}" needs a quantity > 0.`); setSaving(false); return; }
+        if (totalCost < 0) { failures.push(`"${v.name}" total cost can't be negative.`); draftValid = false; break; }
+        if (quantity <= 0) { failures.push(`"${v.name}" needs a quantity > 0.`); draftValid = false; break; }
       }
+      if (!draftValid) continue;
 
       const firstV = validVariants[0];
       const firstUnitCost = calcUnitCost(Number(firstV.totalCost), Number(firstV.quantity));
@@ -287,7 +275,6 @@ export default function StockIntake() {
       const unitName = firstV.name.trim() || 'unit';
 
       // 1. Create product (must await for ID)
-      // Only include image if the column exists (migration 0021)
       const productPayload: Record<string, unknown> = {
         business_id: profile.business_id,
         name: productName,
@@ -299,9 +286,28 @@ export default function StockIntake() {
         retail_sell_price: firstSellPrice,
       };
       if (draft.image) productPayload.image = draft.image;
-      const { data: prod, error: prodErr } = await supabase.from('products').insert(productPayload).select('id').single();
+      let prod: { id: string } | null = null;
+      let prodErr: { message: string } | null = null;
+      {
+        const res = await supabase.from('products').insert(productPayload).select('id').single();
+        prod = (Array.isArray(res.data) ? res.data[0] : res.data) as { id: string } | null;
+        prodErr = res.error;
+      }
 
-      if (prodErr) { setError(`Error creating "${productName}": ${prodErr.message}`); setSaving(false); return; }
+      // The photo column only exists after migration 0021 — if this database
+      // predates it, save the product WITHOUT the photo instead of failing.
+      if (prodErr && draft.image && isMissingImageColumnError(prodErr.message)) {
+        delete productPayload.image;
+        const retry = await supabase.from('products').insert(productPayload).select('id').single();
+        prod = (Array.isArray(retry.data) ? retry.data[0] : retry.data) as { id: string } | null;
+        prodErr = retry.error;
+        if (!prodErr) photoWarning = true;
+      }
+
+      if (prodErr || !prod?.id) {
+        failures.push(`Error creating "${productName}": ${prodErr?.message ?? 'could not read back the new product id.'}`);
+        continue;
+      }
 
       // 2. Insert variants (batch)
       const totalAllCosts = validVariants.reduce((s, x) => s + (Number(x.totalCost) || 0), 0);
@@ -315,7 +321,7 @@ export default function StockIntake() {
         sort_order: i,
       }));
       const { error: varErr } = await supabase.from('product_variants').insert(variantRows);
-      if (varErr) setError(`Variants error: ${varErr.message}`);
+      if (varErr) failures.push(`"${productName}" variants error: ${varErr.message}`);
 
       // 3. Insert intake records (one per variant)
       for (const v of validVariants) {
@@ -333,15 +339,26 @@ export default function StockIntake() {
           amount_paid: variantPaid,
           created_by: profile.id,
         });
-        if (intakeErr) setError(`Intake error: ${intakeErr.message}`);
+        if (intakeErr) failures.push(`"${productName}" intake error: ${intakeErr.message}`);
       }
+      saved += 1;
     }
 
-    const count = intakeDrafts.length;
-    setStatus(`✅ ${count} product${count === 1 ? '' : 's'} saved!`);
-    setIntakeDrafts([createEmptyIntake()]);
     setSaving(false);
-    await refresh();
+    if (failures.length > 0) {
+      setError(failures.join(' '));
+    }
+    if (saved > 0) {
+      setStatus(
+        `✅ ${saved} product${saved === 1 ? '' : 's'} saved!`
+        + (photoWarning ? ' (Photos skipped — run migration 0021 products.image to enable them.)' : '')
+        + (failures.length > 0 ? ` ${failures.length} item${failures.length === 1 ? '' : 's'} need attention above.` : ''),
+      );
+      setIntakeDrafts([createEmptyIntake()]);
+      await refresh();
+    } else if (failures.length === 0) {
+      setError('Nothing to save — every product needs a name.');
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -653,14 +670,21 @@ export default function StockIntake() {
                               accept="image/*"
                               capture="environment"
                               className="hidden"
+                              disabled={imageBusy !== null}
                               onChange={async (e) => {
                                 const file = e.target.files?.[0];
+                                e.target.value = ''; // allow picking the same file again
                                 if (!file) return;
+                                const tag = `draft-${draft.key}`;
+                                setImageBusy(tag);
+                                setError(null);
                                 try {
                                   const b64 = await fileToBase64(file);
                                   updateItem(draft.key, { image: b64 });
-                                } catch {
-                                  setError('Failed to process image.');
+                                } catch (err) {
+                                  setError(err instanceof Error ? err.message : 'Failed to process image.');
+                                } finally {
+                                  setImageBusy(null);
                                 }
                               }}
                             />
@@ -872,8 +896,8 @@ export default function StockIntake() {
 
             <div className="flex gap-3">
               <button type="button" onClick={addItem} className="btn btn-outline">+ Add Another Product</button>
-              <button type="submit" disabled={saving} className="btn btn-primary flex-1">
-                {saving ? 'Saving...' : '💾 Save All to Inventory'}
+              <button type="submit" disabled={saving || imageBusy !== null} className="btn btn-primary flex-1 disabled:opacity-60">
+                {saving ? 'Saving...' : imageBusy !== null ? '⏳ Processing photo…' : '💾 Save All to Inventory'}
               </button>
             </div>
           </form>
@@ -939,11 +963,16 @@ export default function StockIntake() {
                             <div className="flex gap-2 items-center">
                               <label className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 cursor-pointer">
                                 📷 Change Photo
-                                <input type="file" accept="image/*" capture="environment" className="hidden"
+                                <input type="file" accept="image/*" capture="environment" className="hidden" disabled={imageBusy !== null}
                                   onChange={async (e) => {
                                     const file = e.target.files?.[0];
+                                    e.target.value = ''; // allow picking the same file again
                                     if (!file) return;
-                                    try { setEditProductImage(await fileToBase64(file)); } catch { setError('Failed to process image.'); }
+                                    setImageBusy('edit');
+                                    setError(null);
+                                    try { setEditProductImage(await fileToBase64(file)); }
+                                    catch (err) { setError(err instanceof Error ? err.message : 'Failed to process image.'); }
+                                    finally { setImageBusy(null); }
                                   }} />
                               </label>
                               {editProductImage && (

@@ -17,11 +17,16 @@ export function useMarketAuth() {
 const STORAGE_KEY = 'branchport_market_auth';
 const SESSION_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-// Admin credentials — set via environment variables in production
-function getAdminCredentials(): { username: string; password: string } {
+// Admin credentials — fail CLOSED in production: with no password set,
+// login is impossible (the old 'market2024' fallback shipped in the JS
+// bundle, so anyone reading the code could walk in). Local dev keeps a
+// convenience default via import.meta.env.DEV only.
+function getAdminCredentials(): { username: string; password: string | null } {
   const username = import.meta.env.VITE_MARKET_ADMIN_USER || 'admin';
-  const password = import.meta.env.VITE_MARKET_ADMIN_PASS || 'market2024';
-  return { username, password };
+  const configured = import.meta.env.VITE_MARKET_ADMIN_PASS as string | undefined;
+  if (configured) return { username, password: configured };
+  if (import.meta.env.DEV) return { username, password: 'market2024' };
+  return { username, password: null };
 }
 
 export function MarketAuthProvider({ children }: { children: ReactNode }) {
@@ -46,6 +51,7 @@ export function MarketAuthProvider({ children }: { children: ReactNode }) {
 
   const login = (password: string): boolean => {
     const creds = getAdminCredentials();
+    if (!creds.password) return false;
     if (password === creds.password) {
       setAuthenticated(true);
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ ts: Date.now() }));

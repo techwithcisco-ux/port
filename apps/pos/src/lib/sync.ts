@@ -9,6 +9,34 @@ import type { Product, ProductVariant, InventoryAllocation } from '@branchport/s
 // push after a partial failure is safe: either the row already exists
 // (insert fails harmlessly on the duplicate key, treat as success) or
 // it doesn't yet (insert succeeds).
+//
+// The last failure reason is kept in module state (see getLastSyncError)
+// so the till can SHOW staff why sales aren't syncing instead of failing
+// silently. The classic cause: phone-only sign-in creates no Supabase
+// Auth session, so RLS rejects every insert ("new row violates row-level
+// security policy for table sales") until staff sign in with their
+// activation link + password.
+let lastSyncError: string | null = null;
+let lastSyncAt: string | null = null;
+
+export function getLastSyncError(): string | null {
+  return lastSyncError;
+}
+
+export function getLastSyncAt(): string | null {
+  return lastSyncAt;
+}
+
+function shortSyncError(message: string): string {
+  if (/row-level security/i.test(message)) {
+    return 'Server refused the sale (permissions). Sign out and sign back in with your activation link + password — phone-only sign-in cannot sync.';
+  }
+  if (/network|fetch|failed to fetch|load failed/i.test(message)) {
+    return 'No connection — sales are safe on this device and will sync when you are back online.';
+  }
+  return message;
+}
+
 export async function pushQueuedSales(): Promise<{ pushed: number; failed: number }> {
   const queued = await db.sales.filter((s) => !s.synced).toArray();
   let pushed = 0;
@@ -16,15 +44,25 @@ export async function pushQueuedSales(): Promise<{ pushed: number; failed: numbe
 
   for (const sale of queued) {
     const { synced: _synced, ...saleRow } = sale;
-    const { error } = await supabase.from('sales').insert(saleRow);
+    let error: { message: string; code?: string } | null = null;
+    try {
+      const res = await supabase.from('sales').insert(saleRow);
+      error = res.error;
+    } catch (e) {
+      error = { message: (e as Error).message || 'Network error' };
+    }
 
-    if (error && error.code !== '23505' /* unique_violation = already synced */) {
+    if (error && (error as { code?: string }).code !== '23505' /* unique_violation = already synced */) {
       failed += 1;
+      lastSyncError = shortSyncError(error.message);
       continue;
     }
     await db.sales.update(sale.id, { synced: true });
     pushed += 1;
   }
+
+  lastSyncAt = new Date().toISOString();
+  if (failed === 0) lastSyncError = null;
 
   return { pushed, failed };
 }

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig(({ mode }) => {
   // Default: served under /market/ when combined with the dashboard in a
@@ -11,6 +12,11 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       port: 5175,
+    },
+    resolve: {
+      alias: {
+        '@branchport/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
+      },
     },
     build: {
       rollupOptions: {

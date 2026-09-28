@@ -4,6 +4,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Product, ProductVariant } from '@branchport/shared';
+import { fileToBase64Limited, isMissingImageColumnError } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
 import { AdinkraStock, IconBox } from '../../components/Icons';
 
@@ -26,33 +27,12 @@ interface VariantDraft {
 let nextVariantKey = 1;
 
 /**
- * Convert a File to a base64-encoded string, resized to max 400px.
+ * Product photos funnel through the shared limiter (800px, ~500KB max)
+ * so Render Postgres TEXT rows stay small. Throws a readable message
+ * the form surfaces via setError.
  */
 function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const max = 400;
-        let w = img.width;
-        let h = img.height;
-        if (w > max || h > max) {
-          if (w > h) { h = Math.round(h * max / w); w = max; }
-          else { w = Math.round(w * max / h); h = max; }
-        }
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
-      };
-      img.onerror = reject;
-      img.src = reader.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  return fileToBase64Limited(file);
 }
 
 export default function ProductSetup() {
@@ -64,6 +44,8 @@ export default function ProductSetup() {
     { key: nextVariantKey++, name: 'cup', price: '', baseUnits: '1' },
   ]);
   const [image, setImage] = useState(''); // base64 product image
+  const [imageBusy, setImageBusy] = useState(false); // photo being resized
+  const [saving, setSaving] = useState(false); // blocks double-submit duplicates
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,7 +85,7 @@ export default function ProductSetup() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!profile) return;
+    if (!profile || saving) return;
     setError(null);
     setStatus(null);
 
@@ -123,6 +105,9 @@ export default function ProductSetup() {
       cleanVariants.push({ name: vName, price, baseUnits });
     }
 
+    setSaving(true);
+    try {
+
     // First variant is the base unit; the variant with the most base units
     // seeds the bulk columns the rest of the engine relies on.
     const base = cleanVariants[0];
@@ -139,15 +124,39 @@ export default function ProductSetup() {
       retail_sell_price: base.price,
     };
     if (image) productPayload.image = image;
-    const { data: inserted, error: insertErr } = await supabase.from('products').insert(productPayload);
+    // .select().single() is required: a bare insert returns NO row on
+    // Supabase, which used to surface as "Could not read back the new
+    // product id." on every save.
+    let inserted: unknown = null;
+    let insertErr: { message: string } | null = null;
+    {
+      const res = await supabase.from('products').insert(productPayload).select('id').single();
+      inserted = res.data;
+      insertErr = res.error;
+    }
+
+    // The photo column only exists after migration 0021 — if this database
+    // predates it, save the product WITHOUT the photo instead of failing.
+    if (insertErr && image && isMissingImageColumnError(insertErr.message)) {
+      delete productPayload.image;
+      const retry = await supabase.from('products').insert(productPayload).select('id').single();
+      inserted = retry.data;
+      insertErr = retry.error;
+      if (!insertErr) {
+        setStatus('Note: product saved without its photo — run migration 0021 (products.image) to enable photos.');
+      }
+    }
 
     if (insertErr) {
       setError(`Error: ${insertErr.message}`);
       return;
     }
 
-    const firstRow = Array.isArray(inserted) ? (inserted[0] as { id: string } | undefined) : undefined;
-    const productId = firstRow?.id;
+    const productId = (
+      Array.isArray(inserted)
+        ? (inserted[0] as { id: string } | undefined)?.id
+        : (inserted as { id: string } | null)?.id
+    );
     if (!productId) {
       setError('Could not read back the new product id.');
       return;
@@ -171,6 +180,9 @@ export default function ProductSetup() {
     setCost('');
     setImage('');
     setVariants([{ key: nextVariantKey++, name: 'cup', price: '', baseUnits: '1' }]);
+    } finally {
+      setSaving(false);
+    }
     refresh();
   }
 
@@ -201,13 +213,18 @@ export default function ProductSetup() {
               <p className="text-sm font-medium text-gray-700">Product Image</p>
               <p className="text-[11px] text-gray-400 mb-1">Photo helps staff identify items at the POS</p>
               <div className="flex gap-2">
-                <label className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 cursor-pointer">
-                  📷 Take / Choose Photo
-                  <input type="file" accept="image/*" capture="environment" className="hidden"
+                <label className={`px-3 py-1.5 rounded-lg text-xs font-medium ${imageBusy ? 'bg-gray-50 text-gray-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer'}`}>
+                  {imageBusy ? '⏳ Processing…' : '📷 Take / Choose Photo'}
+                  <input type="file" accept="image/*" capture="environment" className="hidden" disabled={imageBusy}
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
+                      e.target.value = ''; // allow picking the same file again
                       if (!file) return;
-                      try { setImage(await fileToBase64(file)); } catch { setError('Failed to process image.'); }
+                      setImageBusy(true);
+                      setError(null);
+                      try { setImage(await fileToBase64(file)); }
+                      catch (err) { setError(err instanceof Error ? err.message : 'Failed to process image.'); }
+                      finally { setImageBusy(false); }
                     }} />
                 </label>
                 {image && (
@@ -310,8 +327,8 @@ export default function ProductSetup() {
           {error && <p className="text-sm text-red-800">{error}</p>}
           {status && <p className="text-sm text-gray-600">{status}</p>}
 
-          <button type="submit" className="btn btn-primary w-full">
-            Add product
+          <button type="submit" disabled={saving || imageBusy} className="btn btn-primary w-full disabled:opacity-60">
+            {saving ? 'Saving…' : imageBusy ? 'Processing photo…' : 'Add product'}
           </button>
         </form>
 

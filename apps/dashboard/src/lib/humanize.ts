@@ -20,25 +20,47 @@ function fmtQty(v: unknown): string {
   return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
 }
 
+// Plain-words clock story for an event, e.g. "Kwadwo's device clock was
+// ~45 min behind server time (server 2:10 PM, device claimed 1:25 PM)".
+// Returns null when the clocks agree — callers append it to the sentence
+// so owners never need to open raw JSON to spot backdating/offline use.
+export function clockNote(e: AuditEvent): string | null {
+  if (!e.client_reported_at) return null;
+  const server = new Date(e.occurred_at).getTime();
+  const claimed = new Date(e.client_reported_at).getTime();
+  if (!Number.isFinite(server) || !Number.isFinite(claimed)) return null;
+  const gapMin = Math.round((server - claimed) / 60000);
+  if (Math.abs(gapMin) <= 10) return null;
+  const dir = gapMin > 0 ? 'behind' : 'ahead of';
+  const fmt = (t: number) =>
+    new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  return `device clock was ~${Math.abs(gapMin)} min ${dir} server time (server saw ${fmt(server)}, device claimed ${fmt(claimed)})`;
+}
+
 export function humanizeEvent(e: AuditEvent, ctx: NameCtx): string {
   const actor = ctx.user(e.actor_user_id);
   const after = (e.after_state ?? {}) as Record<string, unknown>;
   const before = (e.before_state ?? {}) as Record<string, unknown>;
+  const withClock = (s: string): string => {
+    const note = clockNote(e);
+    return note ? `${s} — ${note}` : s;
+  };
 
   switch (e.entity_type) {
     case 'sales': {
       const unit = String(after.unit_type ?? 'unit');
       const line = `${actor} sold ${fmtQty(after.quantity)} ${unit} of ${ctx.product(String(after.product_id))} at ${ctx.branch(String(after.branch_id))} for ${formatGHS(Number(after.total_price))}`;
-      return after.price_flagged ? `${line} — PRICE FLAGGED` : line;
+      const flagged = after.price_flagged ? `${line} — PRICE FLAGGED` : line;
+      return withClock(flagged);
     }
     case 'inventory_intake': {
       const cost = Number(after.cost_price_total ?? before.cost_price_total ?? 0);
       const paid = Number(after.amount_paid ?? before.amount_paid ?? 0);
       const owed = Number(after.amount_owed ?? cost - paid);
-      return `${actor} recorded ${fmtQty(after.bulk_quantity)} ${ctx.product(String(after.product_id))} from ${ctx.supplier(String(after.supplier_id))} — cost ${formatGHS(cost)}, paid ${formatGHS(paid)}, owed ${formatGHS(owed)}`;
+      return withClock(`${actor} recorded ${fmtQty(after.bulk_quantity)} ${ctx.product(String(after.product_id))} from ${ctx.supplier(String(after.supplier_id))} — cost ${formatGHS(cost)}, paid ${formatGHS(paid)}, owed ${formatGHS(owed)}`);
     }
     case 'inventory_allocations': {
-      return `${actor} allocated ${fmtQty(after.bulk_quantity)} of ${ctx.product(String(after.product_id))} to ${ctx.branch(String(after.branch_id))} (${fmtQty(after.retail_quantity_equivalent)} retail units)`;
+      return withClock(`${actor} allocated ${fmtQty(after.bulk_quantity)} of ${ctx.product(String(after.product_id))} to ${ctx.branch(String(after.branch_id))} (${fmtQty(after.retail_quantity_equivalent)} retail units)`);
     }
     case 'supplier_payments': {
       return `${actor} recorded a payment of ${formatGHS(Number(after.amount ?? before.amount ?? 0))} to ${ctx.supplier(String(after.supplier_id))}${after.note ? ` — ${String(after.note)}` : ''}`;

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useLocation } from 'react-router-dom';
 import { db } from '../lib/db';
-import { pushQueuedSales } from '../lib/sync';
+import { pushQueuedSales, getLastSyncError } from '../lib/sync';
 import { useAuth } from '../contexts/AuthContext';
 import type { Product, ProductVariant, QueuedSale, Invoice, InvoiceItem, PaymentMode } from '@branchport/shared';
 import {
@@ -34,9 +34,14 @@ function ghs(n: number): string {
 }
 
 function nextInvoiceNumber(): string {
+  // Random-only suffixes collide across busy tills sharing one branch, and
+  // the retry path reuses numbers. Mixing in time (base36) + randomness
+  // makes same-branch collisions practically impossible.
   const d = new Date();
   const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-  return `BP-${ym}-${String(Math.floor(Math.random() * 9999) + 1).padStart(4, '0')}`;
+  const time = Date.now().toString(36).slice(-4).toUpperCase();
+  const rand = String(Math.floor(Math.random() * 1296)).padStart(2, '0');
+  return `BP-${ym}-${time}${rand}`;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────
@@ -56,6 +61,15 @@ export default function Sell() {
     () => (profile ? db.invoices.where('branch_id').equals(profile.branch_id!).toArray() : []),
     [profile]
   ) ?? [];
+  // Unsynced sales queue — shown as a banner so a silent sync failure
+  // (e.g. RLS rejection on phone-only sign-in) can never hide.
+  const queuedCount = useLiveQuery(() => db.sales.filter((s) => !s.synced).count(), []) ?? 0;
+  const [syncError, setSyncError] = useState<string | null>(null);
+  useEffect(() => {
+    const t = setInterval(() => setSyncError(getLastSyncError()), 5000);
+    setSyncError(getLastSyncError());
+    return () => clearInterval(t);
+  }, []);
 
   const location = useLocation();
   const resumeInvoiceId = (location.state as { resumeInvoiceId?: string } | null)?.resumeInvoiceId;
@@ -268,7 +282,7 @@ export default function Sell() {
     };
 
     await db.invoices.put(invoice);
-    void supabase.from('invoices').upsert(invoice);
+    void Promise.resolve(supabase.from('invoices').upsert(invoice)).catch(() => {});
 
     // If credit payment → auto-create a debtor record
     if (owed > 0) {
@@ -288,7 +302,7 @@ export default function Sell() {
         updated_at: now,
       };
       await db.debtors.add(debtor);
-      void supabase.from('debtors').upsert(debtor);
+      void Promise.resolve(supabase.from('debtors').upsert(debtor)).catch(() => {});
     }
 
     // Log discount + credit actions to audit_events
@@ -316,7 +330,10 @@ export default function Sell() {
         occurred_at: now,
         client_reported_at: now,
       };
-      void supabase.from('audit_events').insert(auditEntry);
+      // Server-written on the Render API (auto-audit covers invoices);
+      // kept for the legacy Supabase path. Swallow failures — a missing
+      // audit row must never break a completed sale.
+      void Promise.resolve(supabase.from('audit_events').insert(auditEntry)).catch(() => {});
     }
 
     setFeedback(`Sale complete — ${ghs(grandTotal)}${owed > 0 ? ` (${ghs(owed)} owed)` : ''}`);
@@ -397,6 +414,12 @@ export default function Sell() {
           </div>
           {feedback && (
             <div className="bg-green-50 text-green-800 rounded-xl px-4 py-3 text-sm mb-3 font-medium">{feedback}</div>
+          )}
+          {queuedCount > 0 && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3 text-sm mb-3">
+              <p className="font-medium">⚠ {queuedCount} sale{queuedCount === 1 ? '' : 's'} on this device only — not yet synced.</p>
+              <p className="text-xs mt-1">{syncError ?? 'Waiting for connection…'} </p>
+            </div>
           )}
 
           {/* Search — bigger touch target */}

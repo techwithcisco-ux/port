@@ -59,6 +59,9 @@ CREATE TABLE IF NOT EXISTS products (
   bulk_cost_price numeric NOT NULL CHECK (bulk_cost_price >= 0),
   bulk_sell_price numeric NOT NULL CHECK (bulk_sell_price >= 0),
   retail_sell_price numeric NOT NULL CHECK (retail_sell_price >= 0),
+  -- Base64 JPEG photo (no data: prefix). Client-downscaled to <=800px /
+  -- ~500KB (see shared image helper). Same column as 0021_product_images.
+  image text CHECK (image IS NULL OR char_length(image) <= 700000),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 

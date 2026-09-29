@@ -8,7 +8,7 @@ import Sell from './routes/Sell';
 import Dashboard from './routes/Dashboard';
 import InvoiceHistory from './routes/InvoiceHistory';
 import PosBalanceSheet from './routes/PosBalanceSheet';
-import BottomNav from './components/BottomNav';
+import AssistiveTouch from './components/AssistiveTouch';
 
 // Pulls the catalog once on login and starts the online/offline sync
 // loop (see lib/sync.ts) for as long as a branch-scoped user is signed
@@ -26,7 +26,7 @@ function SyncBoundary({ children }: { children: JSX.Element }) {
   return (
     <>
       {children}
-      <BottomNav />
+      <AssistiveTouch />
     </>
   );
 }

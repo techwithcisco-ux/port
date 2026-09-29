@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { humanizeEvent, humanizeDiff, structuredFields, searchMatches, NameCtx } from '../../lib/humanize';
 import type { AuditEvent } from '@branchport/shared';
 import { AdinkraAudit, AdinkraHistory, IconShield, IconSearch, IconFilter } from '../../components/Icons';
@@ -32,10 +32,10 @@ export default function AuditLog() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('users').select('id, name'),
-      supabase.from('products').select('id, name'),
-      supabase.from('branches').select('id, name'),
-      supabase.from('suppliers').select('id, name'),
+      api.from('users').select('id, name'),
+      api.from('products').select('id, name'),
+      api.from('branches').select('id, name'),
+      api.from('suppliers').select('id, name'),
     ]).then(([u, p, b, s]) => {
       setNames({
         users: (u.data as Array<{ id: string; name: string }>) ?? [],
@@ -51,7 +51,7 @@ export default function AuditLog() {
   }, [entityFilter, actorFilter, from, to]);
 
   useEffect(() => {
-    let query = supabase
+    let query = api
       .from('audit_events')
       .select('*')
       .order('occurred_at', { ascending: false })

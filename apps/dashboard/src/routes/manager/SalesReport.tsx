@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
 import { RevenueByDay, RevenueByBranch } from '../../lib/charts';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Branch, Product, Sale, AppUser } from '@branchport/shared';
 import { downloadCsv, formatGHS, startOfToday, startOfWeek, startOfMonth } from '../../lib/utils';
 
@@ -45,9 +45,9 @@ export default function SalesReport() {
   useEffect(() => {
     (async () => {
       const [b, p, u] = await Promise.all([
-        supabase.from('branches').select('*'),
-        supabase.from('products').select('*'),
-        supabase.from('users').select('id, name'),
+        api.from('branches').select('*'),
+        api.from('products').select('*'),
+        api.from('users').select('id, name'),
       ]);
       setBranches((b.data as Branch[]) ?? []);
       setProducts((p.data as Product[]) ?? []);
@@ -64,7 +64,7 @@ export default function SalesReport() {
     const toIso = to ? new Date(new Date(to).setHours(23, 59, 59, 999)).toISOString() : '';
 
     setLoading(true);
-    let q = supabase
+    let q = api
       .from('sales')
       .select('*')
       .order('sold_at', { ascending: false });

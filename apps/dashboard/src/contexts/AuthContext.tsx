@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 
 // ─── Types ───────────────────────────────────────────────────
 export interface UserProfile {
@@ -14,7 +14,7 @@ export interface UserProfile {
 
 interface AuthState {
   loading: boolean;
-  /** The current Supabase auth user id (may be null before profile loads) */
+  /** The authenticated user id (may be null before profile loads) */
   authUserId: string | null;
   /** The full user profile from the users table (null until loaded) */
   profile: UserProfile | null;
@@ -27,7 +27,7 @@ interface AuthState {
   /** Alias */
   signIn: (phone: string, password: string) => Promise<{ error: string | null }>;
 
-  /** Create a new owner account */
+  /** Create a new owner account (business + owner + Main Store branch) */
   signUpOwner: (params: {
     name: string;
     phone: string;
@@ -48,21 +48,18 @@ interface AuthState {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
-// NOTE: sessions live ONLY in Supabase Auth storage (managed by
-// supabase-js). This app never keeps its own user-id shortcut or password
+// NOTE: sessions live ONLY as the JWT + user JSON under the
+// 'bp-session-token' / 'bp-session-user' keys (see packages/shared
+// apiClient). This app never keeps its own user-id shortcut or password
 // copy: a bare id in localStorage proves nothing and a stored password is
-// a theft waiting to happen. "Remember me" = Supabase's persisted session.
-
-function phoneToEmail(phone: string): string {
-  const clean = phone.replace(/\s+/g, '').replace(/[^+\d]/g, '');
-  return `${clean}@branchport.app`;
-}
+// a theft waiting to happen. "Remember me" = the 30-day JWT in storage.
 
 function normalizePhone(v: string): string {
   return v.replace(/\s+/g, '').replace(/[^+\d]/g, '');
 }
 
 // Login rate-limit: slow brute force on shared manager devices.
+// (The API rate-limits per IP too — this is the client-side backstop.)
 let failCount = 0;
 let lockedUntil = 0;
 
@@ -77,16 +74,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Load profile from DB ──
   const loadProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await api
         .from('users')
         .select('*')
         .eq('id', userId)
         .single();
 
       if (error || !data) {
-        // No app row for this auth user (deleted, or signup RPC failed).
-        // Never synthesize a role here — a forged owner stub with an empty
-        // business_id would render owner screens with no data at best.
+        // No row for this id (deleted mid-session). Never synthesize a role
+        // here — a forged owner stub with an empty business_id would render
+        // owner screens with no data at best.
         console.error('loadProfile error:', error?.message);
         return null;
       }
@@ -97,27 +94,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // ── Initialize on mount ──
+  // ── Initialize on mount: validate the stored JWT via /auth/me ──
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const token = api.auth.getToken();
+        if (!token) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
+        const res = await api.auth.me();
         if (cancelled) return;
-
-        if (session?.user) {
-          const userId = session.user.id;
-          setAuthUserId(userId);
-          const p = await loadProfile(userId);
+        if (res.ok) {
+          setAuthUserId(res.user.id);
+          const p = await loadProfile(res.user.id);
           if (!cancelled) {
             setProfile(p);
             setLoading(false);
           }
         } else {
-          // No Supabase session ⇒ logged out. A bare user id in storage
-          // is never trusted on its own (anyone can write localStorage).
-          if (!cancelled) setLoading(false);
+          // Expired/invalid token or network failure — treat as logged out.
+          // (A transient network error also lands here: the login screen
+          // shown is recoverable, a phantom session is not.)
+          api.auth.logout();
+          setLoading(false);
         }
       } catch (err) {
         console.error('Auth init failed:', err);
@@ -127,24 +129,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     init();
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, session: { user?: { id: string } } | null) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          const userId = session.user.id;
-          setAuthUserId(userId);
-          const p = await loadProfile(userId);
-          setProfile(p);
-        } else if (event === 'SIGNED_OUT') {
-          setAuthUserId(null);
-          setProfile(null);
-        }
+    // Cross-tab: another tab signed in/out.
+    const unsubscribe = api.auth.onChange((event) => {
+      if (cancelled) return;
+      if (event === 'signed-out') {
+        setAuthUserId(null);
+        setProfile(null);
       }
-    );
+    });
 
     return () => {
       cancelled = true;
-      subscription.unsubscribe();
+      unsubscribe();
     };
   }, [loadProfile]);
 
@@ -169,46 +165,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: msg };
     };
 
-    const email = phoneToEmail(cleanPhone);
+    const res = await api.auth.login(cleanPhone, cleanPw);
 
-    const { data, error: authErr } = await supabase.auth.signInWithPassword({
-      email,
-      password: cleanPw,
-    });
-
-    if (authErr) {
-      const msg = authErr.message;
-      if (msg.includes('Invalid login credentials')) {
-        return fail('Wrong phone number or password. Please check and try again.');
+    if (!res.ok) {
+      if (/too many attempts/i.test(res.error)) {
+        return { error: res.error };
       }
-      if (msg.includes('Email not confirmed')) {
-        // BranchPort logins are phone@branchport.app — a fake domain whose
-        // mailbox never exists — so "Confirm email" must stay OFF in
-        // Supabase Auth settings. If it is ever ON, nobody can sign in and
-        // no client trick can fix that; say so plainly.
-        return fail('Account not confirmed. Ask your administrator to switch OFF “Confirm email” in Supabase Auth settings, then try again.');
-      }
-      if (msg.includes('too many')) {
-        return { error: 'Too many attempts. Please wait a minute and try again.' };
-      }
-      return fail(msg || 'Login failed. Please try again.');
+      return fail(res.error || 'Wrong phone number or password. Please check and try again.');
     }
 
-    if (!data.user) {
-      return fail('Login failed. Please try again.');
-    }
-
-    // Success — the session is persisted by supabase-js itself.
+    // Success — the JWT + user are persisted by the client itself.
     failCount = 0;
-    const userId = data.user.id;
-    setAuthUserId(userId);
-    const p = await loadProfile(userId);
+    setAuthUserId(res.user.id);
+    const p = await loadProfile(res.user.id);
     setProfile(p);
 
     return { error: null };
   }, [loadProfile]);
 
-  // ── Sign Up ──
+  // ── Sign Up (owner) ──
   const signUpOwner = useCallback(async (params: {
     name: string;
     phone: string;
@@ -223,89 +198,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!cleanName) return { error: 'Your name is required.' };
     if (!cleanPhone || cleanPhone.length < 9) return { error: 'Please enter a valid Ghana phone number.' };
     if (!cleanBizName) return { error: 'Business name is required.' };
-    if (params.password.length < 7) return { error: 'Password must be at least 7 characters.' };
+    if (params.password.length < 8) return { error: 'Password must be at least 8 characters.' };
+    if (!/[A-Za-z]/.test(params.password) || !/[0-9]/.test(params.password)) {
+      return { error: 'Password must contain a letter and a number.' };
+    }
 
-    const email = phoneToEmail(cleanPhone);
-
-    // Step 1: Create Supabase Auth user
-    const { data: authData, error: authErr } = await supabase.auth.signUp({
-      email,
+    // One atomic call: business + owner user + Main Store branch + JWT.
+    const res = await api.auth.signupOwner({
+      name: cleanName,
+      phone: cleanPhone,
+      businessName: cleanBizName,
+      businessType: params.businessType,
       password: params.password,
-      options: {
-        data: { name: cleanName, phone: cleanPhone },
-        emailRedirectTo: window.location.origin,
-      },
     });
 
-    if (authErr) {
-      const msg = authErr.message;
-      if (msg.includes('already registered') || msg.includes('already been registered')) {
-        return { error: 'This phone number is already registered. Please sign in instead.' };
-      }
-      return { error: msg || 'Signup failed. Please try again.' };
+    if (!res.ok) {
+      return { error: res.error || 'Signup failed. Please try again.' };
     }
 
-    if (!authData.user) {
-      return { error: 'Signup failed. Please try again.' };
-    }
-
-    const newUserId = authData.user.id;
-
-    // With “Confirm email” OFF (required — see login), signUp may already
-    // carry a session. Otherwise sign in to get one BEFORE any RPC: the
-    // hardened RPCs (0023) only serve the caller themself.
-    let sessionUserId: string | null = authData.session?.user.id ?? null;
-    if (!sessionUserId) {
-      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-        email,
-        password: params.password,
-      });
-      if (signInErr || !signInData.session) {
-        return { error: 'Account created, but sign-in failed. Please sign in with your phone + password.' };
-      }
-      sessionUserId = signInData.session.user.id;
-    }
-    if (sessionUserId !== newUserId) {
-      await supabase.auth.signOut();
-      return { error: 'Signup mismatch. Please sign in.' };
-    }
-
-    // Self-confirm (succeeds only for self under 0023; warn-and-continue
-    // otherwise — sign-in already proved the account is usable).
-    const { error: confirmErr } = await supabase.rpc('auto_confirm_user', {
-      p_user_id: newUserId,
-    });
-    if (confirmErr) {
-      console.warn('auto_confirm_user failed:', confirmErr.message);
-    }
-
-    // Create business + owner row. Failure here is FATAL — never fake a
-    // login without a business (the old code did, leaving RLS dead).
-    const { error: rpcErr } = await supabase.rpc('signup_create_owner', {
-      p_auth_user_id: newUserId,
-      p_name: cleanName,
-      p_phone: cleanPhone,
-      p_business_name: cleanBizName,
-    });
-
-    if (rpcErr) {
-      console.error('signup_create_owner RPC failed:', rpcErr.message);
-      await supabase.auth.signOut();
-      setAuthUserId(null);
-      setProfile(null);
-      return { error: `Account created, but setup failed: ${rpcErr.message}. Please contact support.` };
-    }
-
-    setAuthUserId(newUserId);
-    const p = await loadProfile(newUserId);
+    setAuthUserId(res.user.id);
+    const p = await loadProfile(res.user.id);
     setProfile(p);
 
     return { error: null };
   }, [loadProfile]);
 
-  // ── Sign Out ──
+  // ── Sign Out (revokes the refresh token server-side, best effort) ──
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    try { await api.auth.logout(); } catch { /* best effort revoke */ }
     setAuthUserId(null);
     setProfile(null);
   }, []);

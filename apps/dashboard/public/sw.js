@@ -1,5 +1,6 @@
 // BranchPort PWA Service Worker
-// Caches the app shell for offline support. Data always comes from Supabase (live).
+// Caches the app shell for offline support. Data always comes from the
+// branchport API (live) — only same-origin shell assets are cached.
 
 const CACHE_NAME = 'branchport-v1';
 const SHELL_ASSETS = [
@@ -31,9 +32,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  // Skip non-GET, skip Supabase API calls (always live)
+  // Skip non-GET, and never cache cross-origin requests — the REST API
+  // (Render) and any other backend stays live.
   if (request.method !== 'GET') return;
-  if (request.url.includes('supabase.co')) return;
+  try {
+    if (new URL(request.url).origin !== self.location.origin) return;
+  } catch { return; }
 
   event.respondWith(
     fetch(request)

@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase, isApiMode, apiBaseUrl } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, AppUser } from '@branchport/shared';
 
@@ -45,8 +45,8 @@ export default function Team() {
 
   async function refresh() {
     const [b, u] = await Promise.all([
-      supabase.from('branches').select('*'),
-      supabase.from('users').select('*').eq('role', 'staff'),
+      api.from('branches').select('*'),
+      api.from('users').select('*').eq('role', 'staff'),
     ]);
     setBranches((b.data as Branch[]) ?? []);
     setStaff((u.data as AppUser[]) ?? []);
@@ -64,7 +64,7 @@ export default function Team() {
     if (!clean) return;
     setBranchBusy(true);
     setBranchMsg(null);
-    const { error } = await supabase.from('branches').insert([
+    const { error } = await api.from('branches').insert([
       { business_id: profile?.business_id, name: clean },
     ]);
     setBranchBusy(false);
@@ -86,53 +86,42 @@ export default function Team() {
     setError(null);
     setCreated(null);
 
-    const pw = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+    // Compliant temp password (letter + number, 12 chars) via CSPRNG.
+    // Math.random is NOT suitable for credentials — its output is predictable.
+    const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const rand = new Uint32Array(12);
+    crypto.getRandomValues(rand);
+    let pw = Array.from(rand, (x) => alphabet[x % alphabet.length]).join('');
+    if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) pw = 'a1' + pw.slice(2);
     const cleanPhone = phone.trim().replace(/\s+/g, '').replace(/[^+\d]/g, '');
 
-    let newUserId: string;
-    if (isApiMode) {
-      // Render API: single call creates the staff row with a bcrypt
-      // password (replaces auth.signUp + provision_staff_user).
-      const token = (() => { try { return localStorage.getItem('bp-session-token'); } catch { return null; } })();
-      const res = await fetch(`${apiBaseUrl}/auth/staff`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ name: name.trim(), phone: cleanPhone, password: pw, branch_id: branchId, role: 'staff' }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setBusy(false);
-        setError(body.error || 'Could not create staff.');
-        return;
-      }
-      newUserId = body.user.id;
-    } else {
-      const email = `${cleanPhone}@branchport.app`;
-      const { data: authData, error: authErr } = await supabase.auth.signUp({
-        email,
-        password: pw,
-        options: { data: { name: name.trim(), phone: cleanPhone, role: 'staff' } },
-      });
-
-      if (authErr) {
-        setBusy(false);
-        setError(authErr.message.includes('already registered') ? 'A user with this phone number already exists.' : `Auth error: ${authErr.message}`);
-        return;
-      }
-      if (!authData.user) { setBusy(false); setError('Failed to create user.'); return; }
-      newUserId = authData.user.id;
-      const { error: rpcErr } = await supabase.rpc('provision_staff_user', {
-        p_auth_user_id: newUserId,
-        p_business_id: profile.business_id,
-        p_branch_id: branchId,
-        p_name: name.trim(),
-        p_phone: cleanPhone,
-      });
-      if (rpcErr) console.warn('provision_staff_user RPC failed:', rpcErr.message);
-    }
-
+    // One call creates the staff row with a bcrypt password (the API
+    // takes the business from the caller's JWT). Password is REQUIRED —
+    // the till has no passwordless path.
+    const res = await api.auth.createStaff({
+      name: name.trim(),
+      phone: cleanPhone,
+      password: pw,
+      branch_id: branchId,
+      role: 'staff',
+    });
     setBusy(false);
-    const activationUrl = `${window.location.origin}/login?phone=${encodeURIComponent(cleanPhone)}&password=${encodeURIComponent(pw)}`;
+
+    if (!res.ok) {
+      setError(res.error || 'Could not create staff.');
+      return;
+    }
+    const newUserId = res.user.id;
+
+    // Single-use activation link: NEVER put the password in the URL
+    // (it leaks into history, logs and referrers). The token link proves
+    // device ownership; the password travels separately in the message.
+    const posBase = ((import.meta.env.VITE_POS_URL as string | undefined) || '').replace(/\/$/, '')
+      || window.location.origin;
+    const token = (res.user as unknown as { pos_activation_token?: string | null }).pos_activation_token;
+    const activationUrl = token
+      ? `${posBase}/activate?token=${encodeURIComponent(token)}`
+      : `${posBase}/login`;
 
     setCreated({
       name: name.trim(),
@@ -196,7 +185,7 @@ export default function Team() {
     if (!editingId || !editName.trim() || !editPhone.trim()) return;
     setEditBusy(true);
     setEditError(null);
-    const { error } = await supabase.from('users').update({
+    const { error } = await api.from('users').update({
       name: editName.trim(),
       phone: editPhone.trim(),
       branch_id: editBranchId || null,
@@ -221,7 +210,7 @@ export default function Team() {
 
   async function handleDelete() {
     if (!deletingId) return;
-    await supabase.from('users').delete().eq('id', deletingId);
+    await api.from('users').delete().eq('id', deletingId);
     setDeletingId(null);
     refresh();
   }
@@ -267,9 +256,9 @@ export default function Team() {
       <BackButton />
       <h1 className="page-title mb-1">Staff management</h1>
       <p className="page-sub mb-3">
-        Create staff accounts with a phone number. After creating an account,
-        send the activation link — the staff member taps it to activate their
-        POS access, then signs in with their phone number only.
+        Create staff accounts with a phone number + temp password. After creating
+        an account, send the activation link — the staff member taps it to
+        activate their POS access, then signs in with phone + password.
       </p>
 
       <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
@@ -540,9 +529,9 @@ export default function Team() {
         <p className="text-sm font-medium text-gray-700 mb-2">How it works</p>
         <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
           <li>Enter the staff member's name and phone number, pick their branch.</li>
-          <li>A unique POS activation link is generated — this confirms they belong to your POS system.</li>
-          <li>Tap "Send via WhatsApp" to send them the link — they tap it to activate, then sign in with their phone number.</li>
-          <li>No passwords needed — the phone number is their login. Same phone on any device = same POS access.</li>
+          <li>A single-use POS activation link is generated — this confirms they belong to your POS system.</li>
+          <li>Tap "Send via WhatsApp" to send them the link + temp password — they tap the link to activate, then sign in with phone + password.</li>
+          <li>Passwords are required on every login. Staff can change theirs later; you can issue a new temp password with the Link button.</li>
           <li>All sales they record on the POS are attributed to them and synced when online.</li>
         </ul>
       </div>

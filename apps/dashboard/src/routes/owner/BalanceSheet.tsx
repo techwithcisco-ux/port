@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
 import { ColorLegend, StatusBadge, ColorStatCard, BarMeter } from '../../components/Visuals';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { formatGHS } from '../../lib/utils';
 import type {
   Branch, Product, InventoryAllocation, Sale,
@@ -28,13 +28,13 @@ export default function BalanceSheet() {
   useEffect(() => {
     (async () => {
       const [p, b, a, s, d, c, ep] = await Promise.all([
-        supabase.from('products').select('*'),
-        supabase.from('branches').select('*'),
-        supabase.from('inventory_allocations').select('*'),
-        supabase.from('sales').select('*'),
-        supabase.from('debtors').select('*'),
-        supabase.from('creditors').select('*'),
-        supabase.from('expense_payments').select('*'),
+        api.from('products').select('*'),
+        api.from('branches').select('*'),
+        api.from('inventory_allocations').select('*'),
+        api.from('sales').select('*'),
+        api.from('debtors').select('*'),
+        api.from('creditors').select('*'),
+        api.from('expense_payments').select('*'),
       ]);
       setProducts((p.data as Product[]) ?? []);
       setBranches((b.data as Branch[]) ?? []);

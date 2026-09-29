@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getPlatformStats, getUserDirectory, getItemsAnalytics, type PlatformStats, type UserAnalytics, type ItemAnalytics } from '../lib/api';
+import LoadError from '../components/LoadError';
 
 export default function Reports() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [users, setUsers] = useState<UserAnalytics[]>([]);
   const [items, setItems] = useState<ItemAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    async function load() {
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
       const [s, u, i] = await Promise.all([
         getPlatformStats(),
         getUserDirectory(),
@@ -17,10 +20,15 @@ export default function Reports() {
       setStats(s);
       setUsers(u);
       setItems(i);
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load report data.');
+    } finally {
       setLoading(false);
     }
-    void load();
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   if (loading) {
     return (
@@ -28,6 +36,10 @@ export default function Reports() {
         <p className="text-gray-500">Generating reports…</p>
       </div>
     );
+  }
+
+  if (error) {
+    return <LoadError message={error} onRetry={() => void load()} />;
   }
 
   // Build CSV data

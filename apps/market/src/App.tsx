@@ -30,9 +30,15 @@ function ProtectedRoutes() {
   );
 }
 
+// Served under /market/ in the combined Vercel build, or at the root of
+// its own site when deployed standalone on Render (VITE_BASE=/) — follow
+// whatever base Vite compiled with instead of hardcoding the path.
+const base = import.meta.env.BASE_URL || '/';
+const routerBasename = base !== '/' ? base.replace(/\/$/, '') : undefined;
+
 export default function App() {
   return (
-    <BrowserRouter basename={import.meta.env.PROD ? '/market' : '/'}>
+    <BrowserRouter basename={routerBasename}>
       <MarketAuthProvider>
         <Routes>
           <Route path="/login" element={<PublicLogin />} />

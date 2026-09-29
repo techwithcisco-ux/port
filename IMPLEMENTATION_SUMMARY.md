@@ -1,6 +1,12 @@
 # BranchPort POS: Enhanced Inventory Dashboard
 ## Implementation Summary
 
+> Historical record of the POS inventory-dashboard feature. The
+> auth/data layer has since been rewritten: all backend access now
+> goes through the `apps/api` Express service (JWT auth, Postgres).
+> There is no demo mode — see `README.md` for the current local-dev
+> and deployment flows.
+
 ---
 
 ## 🎯 Mission Accomplished
@@ -164,7 +170,7 @@ Navigation tabs in header:
 | **State** | React Hooks + useLiveQuery | Real-time data binding |
 | **Calculations** | useMemo | Derived data optimization |
 | **Styling** | Tailwind CSS | Monochrome responsive design |
-| **Data** | Demo or Supabase | Backend (toggleable) |
+| **Data** | BranchPort REST API | Backend (apps/api + Postgres) |
 
 ---
 
@@ -325,13 +331,15 @@ npm run build:dashboard
 Output goes to `dist/` folders. Single `scripts/vercel-build.mjs` combines them for Vercel.
 
 ### Test Flow
-1. Open http://localhost:5174
-2. Login: `staff@branchport.local` (any password)
-3. See Sell screen with "Inventory" tab
-4. Click Inventory → Dashboard loads
-5. See stats, tables, unsold products
-6. Sell a product (go back to POS)
-7. Return to Inventory → metrics update
+1. Start the API (`npm run dev:api`) and the POS (`npm run dev:pos`)
+2. Sign up an owner in the dashboard, create a staff user for a branch,
+   and activate their POS account
+3. Log into the POS with that staff phone number
+4. See Sell screen with "Inventory" tab
+5. Click Inventory → Dashboard loads
+6. See stats, tables, unsold products
+7. Sell a product (go back to POS)
+8. Return to Inventory → metrics update
 
 ---
 
@@ -396,7 +404,7 @@ POS_QUICK_START.md                     Testing & demo guide
 ## ⚠️ Known Limitations
 
 1. **No real-time catalog updates** — Requires app restart to see new products/allocations from manager
-2. **Demo mode only** — Supabase/Docker unavailable locally; using in-memory dataset
+2. **Backend required** — Metrics need `apps/api` + Postgres running (sales sync from the API)
 3. **No charts yet** — Dashboard shows tables; charts can be added later
 4. **No active notifications** — Low stock appears in table (visual only)
 5. **No export** — Can't download inventory as CSV (future feature)
@@ -444,10 +452,10 @@ POS_QUICK_START.md                     Testing & demo guide
 
 ## 📞 Quick Reference
 
-**Login (any password):**
-- Staff: `staff@branchport.local`, `staff2@branchport.local`, `staff3@branchport.local`
-- Manager: `manager@branchport.local` (redirected to StaffNotice)
-- Owner: `owner@branchport.local` (dashboard, not POS)
+**Login (create real users — there is no demo mode):**
+- Owner: sign up at the dashboard (`npm run dev:dashboard`)
+- Manager/Staff: created by the owner from inside the dashboard
+- POS staff: log in with their phone number after activation
 
 **URLs:**
 - POS: http://localhost:5174

@@ -1,15 +1,19 @@
 /**
  * Market Analytics API Layer
  *
- * Connects the standalone Market Stock Analytics dashboard to the
- * BranchPort platform. Reads from real Supabase endpoints.
+ * Platform-wide aggregates for the standalone Market dashboard. All data
+ * comes from the BranchPort API (apps/api):
+ *   - POST /platform/login  — exchanges the MARKET_ADMIN_PASS password for
+ *     a 12h platform JWT (verified server-side, so the password never
+ *     ships in the JS bundle)
+ *   - GET  /platform/export — one call returning every business, branch,
+ *     product, sale and user (password hashes stripped), which this module
+ *     aggregates client-side just like the old bulk fetch did
  *
- * When deployed separately on Vercel, this can be configured to call
- * the BranchPort API via environment variable VITE_API_URL.
+ * VITE_API_URL points at the API (the Render service in production);
+ * unset means the local dev API on localhost:8080.
  */
 
-import { createClient } from '@supabase/supabase-js';
-import { createApiClient } from '@branchport/shared';
 import type {
   Business,
   Branch,
@@ -18,28 +22,12 @@ import type {
   AppUser,
 } from '@branchport/shared';
 
-// Render API (VITE_API_URL) takes precedence; Supabase is the legacy fallback.
-// NOTE: market reads are cross-business aggregates. In API mode the caller
-// must sign in once via MarketLogin with an owner account; the token is
-// attached automatically by the client below.
-const apiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '';
+// ── API base ───────────────────────────────────────────────────────────────
 
-function buildReader() {
-  if (apiBaseUrl) {
-    return createApiClient({ baseUrl: apiBaseUrl, tokenKey: 'bp-market-token', userKey: 'bp-market-user' });
-  }
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    throw new Error(
-      'Missing VITE_API_URL (Render API) or VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. '
-      + 'Copy .env.example to .env and fill in one backend.'
-    );
-  }
-  return createClient(url, key);
-}
-
-const supabase = buildReader();
+let apiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '')
+  || 'http://localhost:8080';
+// Render's fromService:host injects a bare hostname — upgrade to https.
+if (apiBaseUrl && !/:\/\//.test(apiBaseUrl)) apiBaseUrl = `https://${apiBaseUrl}`;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -122,6 +110,62 @@ function guessCategory(name: string): string {
   return 'General';
 }
 
+// ── Platform session (admin gate) ──────────────────────────────────────────
+
+const TOKEN_KEY = 'bp-market-token';
+
+/**
+ * Fired when the API rejects the stored platform token (expired or
+ * revoked). The auth context listens for it and returns the app to the
+ * login gate — routes don't need to know anything about auth.
+ */
+export const SESSION_EXPIRED_EVENT = 'bp-market-session-expired';
+
+function getPlatformToken(): string | null {
+  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+}
+
+export function isPlatformAuthenticated(): boolean {
+  return getPlatformToken() !== null;
+}
+
+export function platformLogout(): void {
+  try { localStorage.removeItem(TOKEN_KEY); } catch { /* storage blocked */ }
+  exportCache = null; // never show one admin's cached export to the next
+}
+
+export type PlatformLoginResult = { ok: true } | { ok: false; error: string };
+
+export async function platformLogin(password: string): Promise<PlatformLoginResult> {
+  if (!password.trim()) return { ok: false, error: 'Enter the admin password.' };
+  try {
+    const res = await fetch(`${apiBaseUrl}/platform/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    let body: { error?: string; token?: string } = {};
+    try { body = JSON.parse(await res.text()) ?? {}; } catch { /* non-JSON body */ }
+
+    if (res.status === 503) {
+      return {
+        ok: false,
+        error: 'Market analytics is not configured on the server. Set MARKET_ADMIN_PASS on the branchport-api service.',
+      };
+    }
+    if (res.status === 401) return { ok: false, error: body.error || 'Invalid password. Access denied.' };
+    if (res.status === 429) return { ok: false, error: body.error || 'Too many attempts — try again shortly.' };
+    if (res.status !== 200 || !body.token) {
+      return { ok: false, error: body.error || `Login failed (${res.status}).` };
+    }
+
+    try { localStorage.setItem(TOKEN_KEY, body.token); } catch { /* storage blocked */ }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Could not reach the server. Check your connection.' };
+  }
+}
+
 // ── Data fetching ──────────────────────────────────────────────────────────
 
 interface RawData {
@@ -132,22 +176,64 @@ interface RawData {
   users: AppUser[];
 }
 
-async function fetchAllData(): Promise<RawData> {
-  const [bizRes, brRes, prodRes, saleRes, userRes] = await Promise.all([
-    supabase.from('businesses').select('*'),
-    supabase.from('branches').select('*'),
-    supabase.from('products').select('*'),
-    supabase.from('sales').select('*'),
-    supabase.from('users').select('*'),
-  ]);
+// The export pulls every row (up to the API's caps) and each analytics
+// view fetches it independently — Reports alone triggers three reads at
+// once. A short cache with in-flight dedup collapses those into one
+// request without making the "live" views noticeably stale.
+const EXPORT_CACHE_MS = 10_000;
+let exportCache: { at: number; promise: Promise<RawData> } | null = null;
 
+async function loadExport(): Promise<RawData> {
+  const token = getPlatformToken();
+  if (!token) throw new Error('Not signed in.');
+
+  let res: Response;
+  try {
+    res = await fetch(`${apiBaseUrl}/platform/export`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new Error('Could not reach the server. Check your connection.');
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    // Platform token expired or revoked — drop it and tell the auth
+    // context so the app returns to the login gate.
+    platformLogout();
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    throw new Error('Session expired — sign in again.');
+  }
+
+  let body: { error?: string; data?: Record<string, unknown> } = {};
+  try { body = JSON.parse(await res.text()) ?? {}; } catch { /* non-JSON body */ }
+  if (res.status !== 200 || !body.data) {
+    throw new Error(body.error || `Data export failed (${res.status}).`);
+  }
+
+  const d = body.data;
   return {
-    businesses: (bizRes.data as Business[]) ?? [],
-    branches: (brRes.data as Branch[]) ?? [],
-    products: (prodRes.data as Product[]) ?? [],
-    sales: (saleRes.data as Sale[]) ?? [],
-    users: (userRes.data as unknown as AppUser[]) ?? [],
+    businesses: (d.businesses as Business[]) ?? [],
+    branches: (d.branches as Branch[]) ?? [],
+    products: (d.products as Product[]) ?? [],
+    sales: (d.sales as Sale[]) ?? [],
+    users: (d.users as unknown as AppUser[]) ?? [],
   };
+}
+
+async function fetchAllData(): Promise<RawData> {
+  if (exportCache && Date.now() - exportCache.at < EXPORT_CACHE_MS) {
+    return exportCache.promise;
+  }
+  const promise = loadExport();
+  exportCache = { at: Date.now(), promise };
+  try {
+    return await promise;
+  } catch (e) {
+    // A failed export must not stay cached — the next retry (the error
+    // UI's Retry button or the next poll) should hit the server at once.
+    if (exportCache && exportCache.promise === promise) exportCache = null;
+    throw e;
+  }
 }
 
 // ── Platform Stats ─────────────────────────────────────────────────────────

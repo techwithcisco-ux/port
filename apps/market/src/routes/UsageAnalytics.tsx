@@ -1,20 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getUsageAnalytics, getPlatformStats, type UsageDataPoint, type PlatformStats } from '../lib/api';
+import LoadError from '../components/LoadError';
 
 export default function UsageAnalytics() {
   const [data, setData] = useState<UsageDataPoint[]>([]);
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    async function load() {
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
       const [d, s] = await Promise.all([getUsageAnalytics(), getPlatformStats()]);
       setData(d);
       setStats(s);
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load usage analytics.');
+    } finally {
       setLoading(false);
     }
-    void load();
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   if (loading) {
     return (
@@ -22,6 +30,10 @@ export default function UsageAnalytics() {
         <p className="text-gray-500">Loading analytics…</p>
       </div>
     );
+  }
+
+  if (error) {
+    return <LoadError message={error} onRetry={() => void load()} />;
   }
 
   const totalSignups = data.reduce((s, d) => s + d.signups, 0);

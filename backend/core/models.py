@@ -1,10 +1,10 @@
-"""BranchPort data model — Python port of supabase/migrations + packages/shared/src/types.ts.
+"""BranchPort data model — Python port of apps/api/schema.sql + packages/shared/src/types.ts.
 
-Trust rules enforced at the model layer (mirrors the Postgres RLS/triggers):
+Trust rules enforced at the model layer (mirrors the API-layer rules in apps/api):
 - Sale / InventoryIntake / InventoryAllocation are immutable: no update/delete
   through the UI (admin also blocks change/delete for Sale).
 - AuditEvent is append-only and written ONLY by signals (like the
-  `security definer` trigger). Views never write it directly.
+  explicit writes apps/api makes on every mutation). Views never write it directly.
 - Sale.sold_by is always the logged-in user; unit_price/total kept consistent.
 """
 import uuid

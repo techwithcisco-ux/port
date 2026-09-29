@@ -1,78 +1,154 @@
-# BranchPort — Management Dashboard + POS
+# BranchPort — Deployment Guide
 
-Two apps, one Supabase project, deployed separately on Vercel.
+One Render Blueprint provisions the database, the API, and all three
+frontends. Vercel remains an option for the static frontends if you
+prefer it — the frontends only need the API's URL.
 
 ## Architecture
 
 ```
-┌─────────────────────────┐     ┌─────────────────────────┐
-│   BranchPort (Vercel)   │     │  Market Analytics (Vercel)│
-│                         │     │                          │
-│  /  → Dashboard app     │◄────│  Reads data via Supabase │
-│  /pos/ → POS app        │     │  REST API                │
-│                         │     │                          │
-└──────────┬──────────────┘     └──────────┬───────────────┘
-           │                               │
-           ▼                               ▼
-   ┌───────────────────────────────────────────┐
-   │         Supabase Project (shared)         │
-   │   Auth · Database · RLS · Edge Functions  │
-   └───────────────────────────────────────────┘
+  ┌────────────────────────────────────────────────────┐
+  │                      Render                        │
+  │                                                    │
+  │  branchport-dashboard ─┐                           │
+  │  branchport-pos ───────┼──► branchport-api (Node)  │
+  │  branchport-market ────┘        │                  │
+  │                                 ▼                  │
+  │                          branchport-db (Postgres)  │
+  └────────────────────────────────────────────────────┘
 ```
 
-## Deployment
+- **branchport-api** — Express + `pg` + JWT. Owns all auth
+  (bcrypt password hashing, session JWTs, POS phone activation,
+  market platform tokens) and all data access. The database has no
+  external auth schema or roles; the API is the sole reader/writer.
+- **branchport-dashboard** — manager + owner web app.
+- **branchport-pos** — staff till (offline-first PWA).
+- **branchport-market** — cross-business analytics, gated behind a
+  server-verified admin password.
 
-### BranchPort (Dashboard + POS)
-1. Connect this repo to Vercel
-2. Set root directory to `branchport/`
-3. Build command: `npm run build:dashboard && npm run build:pos`
-4. Output directory: `apps/dashboard/dist`
-5. Install command: `npm install`
-6. Framework preset: **Other**
-7. Add Vercel rewrites in this project's `vercel.json` to route `/pos/*` to POS dist
+## Deploy on Render (recommended)
 
-Environment variables:
-- `VITE_SUPABASE_URL` — your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` — your Supabase anon key
+`render.yaml` at the repo root describes all five resources.
 
-### Market Analytics (separate Vercel project)
-1. Connect the same repo to Vercel (second project)
-2. Set root directory to `branchport/apps/market`
-3. Build command: `npm run build`
-4. Output directory: `dist`
-5. Framework preset: **Vite**
+1. **Push the repo to GitHub.**
 
-Environment variables:
-- `VITE_SUPABASE_URL` — same Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` — same Supabase anon key
-- `VITE_API_URL` — BranchPort's public URL (for cross-app API calls)
+2. **Create the Blueprint.** On Render: New → Blueprint → select the
+   repo (root directory `branchport/`). Render provisions:
 
-## How They Connect
+   - `branchport-db` — Postgres 16, free plan.
+   - `branchport-api` — Node service. Render *generates* two secrets
+     for you: `JWT_SECRET` and `MARKET_ADMIN_PASS`. `DATABASE_URL` is
+     wired to the database automatically. Health check: `/health`.
+   - `branchport-dashboard`, `branchport-pos`, `branchport-market` —
+     static sites. Each gets `VITE_API_URL` pointing at the API
+     service automatically. The POS and market are built with
+     `VITE_BASE=/` so they serve from their own site roots.
 
-Both apps read from the **same Supabase database**. The Market Analytics app uses the Supabase REST API to query:
-- `users` table — all registered users across all businesses
-- `businesses` table — all businesses on the platform
-- `products` table — all products listed
-- `sales` table — all sales across all branches
-- `branches` table — all branches
-- `audit_events` table — activity logs
+3. **Apply the database schema (one time).** After the database is
+   live, get the External Database URL from the Render dashboard
+   (branchport-db → Connections) and run, from any machine with
+   `psql`:
 
-RLS policies ensure:
-- Dashboard users can only read/write their own business data
-- Market Analytics reads only aggregated/anonymized data via a read-only role
+   ```bash
+   psql "$EXTERNAL_DATABASE_URL" -f apps/api/schema.sql
+   ```
 
-## Development
+   `apps/api/schema.sql` is the single source of truth for the
+   database — it creates every table, index, and constraint in one
+   idempotent run. This is a **fresh database**: all signups start
+   from zero.
+
+4. **Sign up the owner.** Open the dashboard URL, sign up (business +
+   owner in one step), then create manager/staff users from inside
+   the dashboard. Staff get an activation link; after activating they
+   log into the POS with their phone number.
+
+5. **Sign into market analytics.** In the Render dashboard, open
+   branchport-api → Environment and copy the generated
+   `MARKET_ADMIN_PASS`. Open the market URL and sign in with that
+   password. It exchanges server-side for a 12-hour platform JWT;
+   when it expires the app returns to the login gate.
+
+### Render costs and limits
+
+The free Postgres plan expires after 90 days unless upgraded — set a
+reminder or upgrade before then. The API on the free plan sleeps
+after 15 minutes of inactivity (first request after sleep is slow).
+
+## Deploy the frontends on Vercel (alternative)
+
+If you'd rather serve the frontends from Vercel, keep the API and
+database on Render and point the frontends at the API URL.
+
+**Dashboard + POS in one project:**
+
+1. Import the repo, root directory `branchport/`.
+2. Framework preset: **Other** — `vercel.json` takes over
+   (`buildCommand: node scripts/vercel-build.mjs`).
+3. Add `VITE_API_URL` = your Render API URL (e.g.
+   `https://branchport-api.onrender.com`).
+4. Result: dashboard at `/`, POS at `/pos/`.
+
+**Market analytics as its own project:**
+
+1. Import the repo again, root directory `branchport/apps/market`.
+2. Framework: **Vite**. Build `npm run build`, output `dist`.
+3. Add `VITE_API_URL` = the same Render API URL.
+
+**POS as its own project (optional):** root directory
+`branchport/apps/pos`, build with `VITE_BASE=/` so assets resolve at
+the site root.
+
+## Local development
 
 ```bash
-# Start all three dev servers
-npm run dev:dashboard   # → localhost:5173
-npm run dev:pos         # → localhost:5174
-npm run dev:market      # → localhost:5175
+npm install
+
+createdb branchport
+psql postgresql://localhost/branchport -f apps/api/schema.sql
+
+DATABASE_URL=postgresql://localhost/branchport npm run dev:api      # :8080
+npm run dev:dashboard    # :5173
+npm run dev:pos          # :5174
+npm run dev:market       # :5175
 ```
 
-## Supabase Setup
+Set `MARKET_ADMIN_PASS` on the API to use market analytics locally.
+Each frontend's `.env.example` shows the variables it reads.
 
-1. Create a Supabase project at https://supabase.com
-2. Run migrations 0001–0012 from `supabase/migrations/`
-3. Copy the project URL and anon key to both apps' `.env` files
-4. Set up RLS policies per the migration files
+## API reference (summary)
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `GET /health` | — | Liveness probe |
+| `POST /auth/signup-owner` | — | Create business + owner |
+| `POST /auth/login` | rate-limited | Phone/password login (dashboard, access + refresh pair) |
+| `POST /auth/pos-login` | rate-limited | Phone + password login (POS, password always required) |
+| `POST /auth/pos-activate` | activation token | One-time POS activation (returns pair) |
+| `POST /auth/refresh` | refresh token | Rotate refresh token (reuse = revoke all) |
+| `POST /auth/logout` | refresh token | Revoke current session |
+| `POST /auth/logout-all` | access JWT | Revoke all sessions |
+| `POST /auth/change-password` | access JWT | Change own password (fresh pair) |
+| `POST /auth/password-reset/request` | rate-limited | Request reset (generic reply) |
+| `POST /auth/password-reset/confirm` | rate-limited | Confirm reset with token |
+| `POST /auth/admin-reset` | manager/owner | Issue one-time temp password for staff |
+| `GET /auth/sessions` | access JWT | List active sessions |
+| `GET /auth/me` | access JWT | Current profile |
+| `POST /auth/staff` | manager/owner | Provision a manager/staff user (password required) |
+| `GET/POST/PATCH/DELETE /api/:table` | JWT | Role-scoped data access |
+| `POST /api/:table/upsert` | JWT | Insert-or-update |
+| `POST /platform/login` | rate-limited | MARKET_ADMIN_PASS → platform JWT |
+| `GET /platform/export` | platform JWT | Bulk export for market analytics |
+
+## Troubleshooting
+
+- **Frontends can't reach the API** — check `VITE_API_URL` in the
+  site's environment (it should be the full `https://…onrender.com`
+  origin, no trailing slash needed).
+- **Signups fail with a database error** — the schema hasn't been
+  applied: run step 3 of the Render setup.
+- **Market login says "not configured"** — `MARKET_ADMIN_PASS` is
+  unset on branchport-api (503 by design).
+- **Blank page on a standalone POS/market deploy** — the build used
+  the wrong Vite base; rebuild with `VITE_BASE=/`.

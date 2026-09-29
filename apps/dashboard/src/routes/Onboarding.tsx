@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import type { BusinessType, BusinessForm } from '@branchport/shared';
 import { BUSINESS_TYPE_LABELS } from '@branchport/shared';
 import { GyeNyame, BlackStar } from '../components/AdinkraSymbols';
@@ -88,8 +88,8 @@ export default function Onboarding() {
     const primaryType = allCategories[0] ?? 'other';
     const finalForm = showCustomForm && customForm.trim() ? customForm.trim() as BusinessForm : businessForm;
 
-    // Update Supabase
-    const { error: updateErr } = await supabase
+    // Update the business record
+    const { error: updateErr } = await api
       .from('businesses')
       .update({
         business_type: primaryType,
@@ -100,12 +100,12 @@ export default function Onboarding() {
       .eq('id', profile.business_id);
 
     if (updateErr) {
-      console.warn('Supabase update failed:', updateErr.message);
+      console.warn('Business update failed:', updateErr.message);
     }
 
     // Also update the user's name if changed
     if (username.trim() && username.trim() !== profile.name) {
-      await supabase.from('users').update({ name: username.trim() }).eq('id', profile.id);
+      await api.from('users').update({ name: username.trim() }).eq('id', profile.id);
     }
 
     localStorage.setItem('branchport-onboarding-seen', '1');

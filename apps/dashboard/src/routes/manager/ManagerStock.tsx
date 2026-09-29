@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Product, InventoryAllocation, Branch } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
 
@@ -17,9 +17,9 @@ export default function ManagerStock() {
   useEffect(() => {
     async function load() {
       const [p, a, b] = await Promise.all([
-        supabase.from('products').select('*'),
-        supabase.from('inventory_allocations').select('*'),
-        supabase.from('branches').select('*'),
+        api.from('products').select('*'),
+        api.from('inventory_allocations').select('*'),
+        api.from('branches').select('*'),
       ]);
       if (!p.error) setProducts((p.data as Product[]) ?? []);
       if (!a.error) setAllocations((a.data as InventoryAllocation[]) ?? []);

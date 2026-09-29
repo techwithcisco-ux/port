@@ -1,5 +1,9 @@
 # 📋 Implementation Verification Checklist
 
+> Historical verification record for the POS inventory-dashboard
+> feature. The auth/data layer has since been rewritten to run on
+> `apps/api` (Express + JWT + Postgres) — there is no demo mode.
+
 ## ✅ Code Implementation
 
 - [x] **Inventory Calculation Engine** (`apps/pos/src/lib/inventory.ts`)
@@ -205,7 +209,7 @@
 ## 🔄 Data Flow Verified
 
 **On Login:**
-- [x] Staff authenticated via Supabase/demo
+- [x] Staff authenticated via apps/api (phone-number POS login)
 - [x] Profile loaded (role, branch_id, name)
 - [x] SyncBoundary wraps routes
 - [x] pullLatestCatalog() fetches products/allocations
@@ -249,7 +253,7 @@
 
 **Actual Limitations:**
 1. No real-time catalog sync — requires app restart for manager updates
-2. Demo mode only — local Supabase unavailable
+2. Backend required — apps/api + Postgres must be running
 3. No chart yet on POS dashboard — tables only (can add later)
 4. No browser notifications — visual alerts only
 
@@ -280,17 +284,21 @@
 
 ### Quick 5-Minute Test
 ```bash
-# Terminal 1: Start POS
-cd c:\Users\techw\Downloads\branchport\branchport
+# Terminal 1: Start the API (needs a local Postgres + schema applied)
+cd C:\Users\techw\Documents\branchport\branchport
+DATABASE_URL=postgresql://localhost/branchport npm run dev:api
+
+# Terminal 2: Start POS
+cd C:\Users\techw\Documents\branchport\branchport
 npm run dev:pos
 
-# Terminal 2: Start Dashboard
-cd c:\Users\techw\Downloads\branchport\branchport
+# Terminal 3: Start Dashboard
+cd C:\Users\techw\Documents\branchport\branchport
 npm run dev:dashboard
 
 # Browser
-# 1. Go to http://localhost:5174
-# 2. Login: staff@branchport.local / any password
+# 1. Sign up an owner at http://localhost:5173, create a staff user
+# 2. Go to http://localhost:5174, log in with the staff phone number
 # 3. See Sell screen → Click "Inventory" tab
 # 4. Dashboard loads → See 4 stat cards + 3 tables
 # 5. Click "Point of Sale" tab → Back to till

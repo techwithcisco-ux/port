@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, Product, ProductVariant } from '@branchport/shared';
 import {
@@ -43,8 +43,8 @@ export default function Pos() {
 
   async function refreshBranchData(branchId: string) {
     const [{ data: allocs }, { data: salesData }] = await Promise.all([
-      supabase.from('inventory_allocations').select('*').eq('branch_id', branchId),
-      supabase.from('sales').select('*').eq('branch_id', branchId),
+      api.from('inventory_allocations').select('*').eq('branch_id', branchId),
+      api.from('sales').select('*').eq('branch_id', branchId),
     ]);
 
     setAllocations((allocs as Array<{ product_id: string; branch_id: string; retail_quantity_equivalent: number }> | null) ?? []);
@@ -54,9 +54,9 @@ export default function Pos() {
   useEffect(() => {
     async function loadInitialData() {
       const [{ data: branchRows }, { data: productRows }, { data: variantRows }] = await Promise.all([
-        supabase.from('branches').select('*').order('name', { ascending: true }),
-        supabase.from('products').select('*').order('created_at', { ascending: true }),
-        supabase.from('product_variants').select('*'),
+        api.from('branches').select('*').order('name', { ascending: true }),
+        api.from('products').select('*').order('created_at', { ascending: true }),
+        api.from('product_variants').select('*'),
       ]);
 
       const branchesList = (branchRows as Branch[] | null) ?? [];
@@ -171,7 +171,7 @@ export default function Pos() {
       customer_phone: customerPhone.trim() || null,
     }));
 
-    const { error } = await supabase.from('sales').insert(rows);
+    const { error } = await api.from('sales').insert(rows);
 
     if (error) {
       setStatus(`Error: ${error.message}`);
@@ -195,7 +195,7 @@ export default function Pos() {
     setAllocating(true);
     setStatus(null);
 
-    const { error } = await supabase.from('inventory_allocations').insert([{
+    const { error } = await api.from('inventory_allocations').insert([{
       product_id: allocationProduct.id,
       branch_id: selectedBranchId,
       bulk_quantity: allocationBulk,

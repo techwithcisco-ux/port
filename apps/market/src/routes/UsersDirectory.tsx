@@ -1,18 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getUserDirectory, type UserAnalytics } from '../lib/api';
+import LoadError from '../components/LoadError';
 
 export default function UsersDirectory() {
   const [users, setUsers] = useState<UserAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
 
-  useEffect(() => {
-    getUserDirectory().then((data) => {
-      setUsers(data);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setUsers(await getUserDirectory());
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load users.');
+    } finally {
       setLoading(false);
-    });
+    }
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   const filtered = users.filter((u) => {
     const matchesSearch = !search ||
@@ -55,7 +64,9 @@ export default function UsersDirectory() {
       </div>
 
       {/* User cards */}
-      {loading ? (
+      {error ? (
+        <LoadError message={error} onRetry={() => void load()} />
+      ) : loading ? (
         <div className="flex items-center justify-center py-20">
           <p className="text-gray-500">Loading users…</p>
         </div>

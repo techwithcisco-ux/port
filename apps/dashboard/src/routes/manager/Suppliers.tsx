@@ -2,7 +2,7 @@ import { useEffect, useState, FormEvent } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Supplier, InventoryIntake, Product, SupplierPayment, SupplierReconciliation } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
 
@@ -38,11 +38,11 @@ export default function Suppliers() {
 
   async function refresh() {
     const [s, i, p, pm, rc] = await Promise.all([
-      supabase.from('suppliers').select('*').order('name'),
-      supabase.from('inventory_intake').select('*').order('created_at', { ascending: false }),
-      supabase.from('products').select('*'),
-      supabase.from('supplier_payments').select('*').order('paid_at', { ascending: false }),
-      supabase.from('supplier_reconciliations').select('*').order('reconciled_at', { ascending: false }),
+      api.from('suppliers').select('*').order('name'),
+      api.from('inventory_intake').select('*').order('created_at', { ascending: false }),
+      api.from('products').select('*'),
+      api.from('supplier_payments').select('*').order('paid_at', { ascending: false }),
+      api.from('supplier_reconciliations').select('*').order('reconciled_at', { ascending: false }),
     ]);
     setSuppliers((s.data as Supplier[]) ?? []);
     setIntakes((i.data as InventoryIntake[]) ?? []);
@@ -77,7 +77,7 @@ export default function Suppliers() {
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
     setStatus(null);
-    const { error } = await supabase.from('suppliers').insert({ name: name.trim(), business_id: profile?.business_id });
+    const { error } = await api.from('suppliers').insert({ name: name.trim(), business_id: profile?.business_id });
     if (error) setStatus(`Error: ${error.message}`);
     else {
       setStatus('Supplier added.');
@@ -99,7 +99,7 @@ export default function Suppliers() {
     }
     // business_id is required by the payments_insert RLS policy — without
     // it Postgres rejects the row ("violates row-level security policy").
-    const { error } = await supabase.from('supplier_payments').insert([
+    const { error } = await api.from('supplier_payments').insert([
       {
         business_id: profile?.business_id,
         supplier_id: supplierId,
@@ -124,7 +124,7 @@ export default function Suppliers() {
     // business_id is required by the reconciliations_insert RLS policy —
     // without it Postgres rejects the row ("violates row-level security
     // policy for table supplier_reconciliations").
-    const { error } = await supabase.from('supplier_reconciliations').insert([
+    const { error } = await api.from('supplier_reconciliations').insert([
       {
         business_id: profile?.business_id,
         supplier_id: supplierId,

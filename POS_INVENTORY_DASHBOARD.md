@@ -106,7 +106,7 @@ All calculations work **offline-first** from local Dexie cache:
 3. **Sales** - Local sales (queued + synced), branched filtered
 4. **Calculations** - Derived in real-time from these three tables
 
-No direct Supabase queries on the dashboard—everything is computed locally, making it work perfectly offline.
+No direct API queries on the dashboard—everything is computed locally from the Dexie cache, making it work perfectly offline.
 
 ---
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
 import { ColorLegend, StatusBadge, ColorStatCard, BarMeter } from '../../components/Visuals';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { formatGHS } from '../../lib/utils';
 import type { Branch, Product, InventoryAllocation, Sale } from '@branchport/shared';
 import { saleBaseUnits } from '@branchport/shared';
@@ -52,10 +52,10 @@ export default function StockBalance() {
   useEffect(() => {
     (async () => {
       const [p, b, a, s] = await Promise.all([
-        supabase.from('products').select('*'),
-        supabase.from('branches').select('*'),
-        supabase.from('inventory_allocations').select('*'),
-        supabase.from('sales').select('*'),
+        api.from('products').select('*'),
+        api.from('branches').select('*'),
+        api.from('inventory_allocations').select('*'),
+        api.from('sales').select('*'),
       ]);
       setProducts((p.data as Product[]) ?? []);
       setBranches((b.data as Branch[]) ?? []);

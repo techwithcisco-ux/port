@@ -12,7 +12,7 @@ import {
   isSyntheticVariant,
   nowISO,
 } from '@branchport/shared';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -282,7 +282,9 @@ export default function Sell() {
     };
 
     await db.invoices.put(invoice);
-    void Promise.resolve(supabase.from('invoices').upsert(invoice)).catch(() => {});
+    // The API writes the invoice server-side and audits it; a local failure
+    // must never block a completed sale.
+    void Promise.resolve(api.from('invoices').upsert(invoice)).catch(() => {});
 
     // If credit payment → auto-create a debtor record
     if (owed > 0) {
@@ -302,38 +304,7 @@ export default function Sell() {
         updated_at: now,
       };
       await db.debtors.add(debtor);
-      void Promise.resolve(supabase.from('debtors').upsert(debtor)).catch(() => {});
-    }
-
-    // Log discount + credit actions to audit_events
-    if (hasDiscounts || paymentMode === 'credit') {
-      const auditEntry = {
-        id: crypto.randomUUID(),
-        business_id: profile.business_id,
-        actor_user_id: profile.id,
-        action_type: hasDiscounts && paymentMode === 'credit' ? 'discounted_credit_sale' : hasDiscounts ? 'discount_applied' : 'credit_sale',
-        entity_type: 'invoice',
-        entity_id: invoice.id,
-        before_state: null,
-        after_state: {
-          invoice_number: invoice.invoice_number,
-          customer: customerName.trim() || 'Walk-in',
-          grand_total: grandTotal,
-          amount_owed: owed,
-          discounted_items: items.filter((it) => it.is_discounted).map((it) => ({
-            product: it.product_name,
-            original_price: it.original_unit_price,
-            cut_price: it.unit_price,
-            quantity: it.quantity,
-          })),
-        },
-        occurred_at: now,
-        client_reported_at: now,
-      };
-      // Server-written on the Render API (auto-audit covers invoices);
-      // kept for the legacy Supabase path. Swallow failures — a missing
-      // audit row must never break a completed sale.
-      void Promise.resolve(supabase.from('audit_events').insert(auditEntry)).catch(() => {});
+      void Promise.resolve(api.from('debtors').upsert(debtor)).catch(() => {});
     }
 
     setFeedback(`Sale complete — ${ghs(grandTotal)}${owed > 0 ? ` (${ghs(owed)} owed)` : ''}`);

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, Product, InventoryAllocation } from '@branchport/shared';
 import { BarMeter, ColorStatCard } from '../../components/Visuals';
@@ -27,7 +27,7 @@ export default function OwnerStockAllocation() {
   const [bulkCost, setBulkCost] = useState('');
 
   async function refreshRecent() {
-    const { data } = await supabase
+    const { data } = await api
       .from('inventory_allocations')
       .select('*')
       .order('allocated_at', { ascending: false })
@@ -38,8 +38,8 @@ export default function OwnerStockAllocation() {
   useEffect(() => {
     (async () => {
       const [p, b] = await Promise.all([
-        supabase.from('products').select('*'),
-        supabase.from('branches').select('*'),
+        api.from('products').select('*'),
+        api.from('branches').select('*'),
       ]);
       setProducts((p.data as Product[]) ?? []);
       setBranches((b.data as Branch[]) ?? []);
@@ -81,7 +81,7 @@ export default function OwnerStockAllocation() {
         allocated_by: profile.id,
       }];
 
-      const { error: err } = await supabase.from('inventory_allocations').insert(rows);
+      const { error: err } = await api.from('inventory_allocations').insert(rows);
       if (err) {
         setError(err.message);
       } else {
@@ -100,7 +100,7 @@ export default function OwnerStockAllocation() {
         allocated_by: profile.id,
       }];
 
-      const { error: err } = await supabase.from('inventory_allocations').insert(rows);
+      const { error: err } = await api.from('inventory_allocations').insert(rows);
       if (err) {
         setError(err.message);
       } else {

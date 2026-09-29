@@ -9,12 +9,13 @@ import { VitePWA } from 'vite-plugin-pwa';
 // handle data sync — that's the Dexie queue in src/lib/db.ts and
 // src/lib/sync.ts (requirements Section 5).
 //
-// The production build deploys under /pos/ (one Vercel project serves the
-// dashboard at / and the POS at /pos/ — see scripts/vercel-build.mjs), so
-// base + the PWA start_url follow the build mode. Local dev stays at the
-// root of :5174 as before.
+// The production build defaults to /pos/ (one Vercel project serving the
+// dashboard at / and the POS at /pos/ — see scripts/vercel-build.mjs).
+// Deploying the POS as its own standalone site (Render) overrides the base
+// at build time with VITE_BASE=/ so it serves from the root. Local dev
+// stays at the root of :5174 as before.
 export default defineConfig(({ mode }) => {
-  const base = mode === 'production' ? '/pos/' : '/';
+  const base = process.env.VITE_BASE || (mode === 'production' ? '/pos/' : '/');
   return {
     base,
     plugins: [

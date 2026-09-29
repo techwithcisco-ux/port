@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase, isApiMode, apiBaseUrl } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, AppUser } from '@branchport/shared';
 
@@ -50,8 +50,8 @@ export default function OwnerTeam() {
 
   async function refresh() {
     const [b, u] = await Promise.all([
-      supabase.from('branches').select('*'),
-      supabase.from('users').select('*').eq('role', 'staff'),
+      api.from('branches').select('*'),
+      api.from('users').select('*').eq('role', 'staff'),
     ]);
     setBranches((b.data as Branch[]) ?? []);
     setStaff((u.data as AppUser[]) ?? []);
@@ -75,62 +75,23 @@ export default function OwnerTeam() {
     const pw = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
     const cleanPhone = phone.trim().replace(/\s+/g, '').replace(/[^+\d]/g, '');
 
-    let newUserId: string;
-    if (isApiMode) {
-      const token = (() => { try { return localStorage.getItem('bp-session-token'); } catch { return null; } })();
-      const res = await fetch(`${apiBaseUrl}/auth/staff`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ name: name.trim(), phone: cleanPhone, password: pw, branch_id: branchId, role: 'staff' }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setBusy(false);
-        setError(body.error || 'Could not create staff.');
-        return;
-      }
-      newUserId = body.user.id;
-    } else {
-      const email = `${cleanPhone}@branchport.app`;
-      // 1. Create Supabase auth user
-      const { data: authData, error: authErr } = await supabase.auth.signUp({
-        email,
-        password: pw,
-        options: { data: { name: name.trim(), phone: cleanPhone, role: 'staff' } },
-      });
-
-      if (authErr) {
-        setBusy(false);
-        if (authErr.message.includes('already registered')) {
-          setError('A user with this phone number already exists.');
-        } else {
-          setError(`Auth error: ${authErr.message}`);
-        }
-        return;
-      }
-
-      if (!authData.user) {
-        setBusy(false);
-        setError('Failed to create user.');
-        return;
-      }
-      newUserId = authData.user.id;
-
-      // 2. Create user record via RPC
-      const { error: rpcErr } = await supabase.rpc('provision_staff_user', {
-        p_auth_user_id: newUserId,
-        p_business_id: profile.business_id,
-        p_branch_id: branchId,
-        p_name: name.trim(),
-        p_phone: cleanPhone,
-      });
-
-      if (rpcErr) {
-        console.warn('provision_staff_user RPC failed:', rpcErr.message);
-      }
-    }
-
+    // One call creates the staff row with a bcrypt password (the API
+    // takes the business from the caller's JWT).
+    const res = await api.auth.createStaff({
+      name: name.trim(),
+      phone: cleanPhone,
+      password: pw,
+      branch_id: branchId,
+      role: 'staff',
+    });
     setBusy(false);
+
+    if (!res.ok) {
+      setError(res.error || 'Could not create staff.');
+      return;
+    }
+    const newUserId = res.user.id;
+
     const activationUrl = `${window.location.origin}/login?phone=${encodeURIComponent(cleanPhone)}&password=${encodeURIComponent(pw)}`;
 
     setCreated({
@@ -177,7 +138,7 @@ export default function OwnerTeam() {
     if (!editingId || !editName.trim() || !editPhone.trim()) return;
     setEditBusy(true);
     setEditError(null);
-    const { error } = await supabase.from('users').update({
+    const { error } = await api.from('users').update({
       name: editName.trim(),
       phone: editPhone.trim(),
       branch_id: editBranchId || null,
@@ -193,7 +154,7 @@ export default function OwnerTeam() {
   function cancelDelete() { setDeletingId(null); }
   async function handleDelete() {
     if (!deletingId) return;
-    await supabase.from('users').delete().eq('id', deletingId);
+    await api.from('users').delete().eq('id', deletingId);
     setDeletingId(null);
     refresh();
   }

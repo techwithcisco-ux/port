@@ -1,10 +1,10 @@
 import { useEffect, useState, FormEvent } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Product, ProductVariant } from '@branchport/shared';
-import { fileToBase64Limited, isMissingImageColumnError } from '@branchport/shared';
+import { fileToBase64Limited } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
 import { AdinkraStock, IconBox } from '../../components/Icons';
 
@@ -51,8 +51,8 @@ export default function ProductSetup() {
 
   async function refresh() {
     const [{ data: prodRows }, { data: variantRows }] = await Promise.all([
-      supabase.from('products').select('*').order('created_at', { ascending: false }),
-      supabase.from('product_variants').select('*'),
+      api.from('products').select('*').order('created_at', { ascending: false }),
+      api.from('product_variants').select('*'),
     ]);
     const variantsByProduct = new Map<string, ProductVariant[]>();
     for (const v of (variantRows as ProductVariant[] | null) ?? []) {
@@ -124,28 +124,11 @@ export default function ProductSetup() {
       retail_sell_price: base.price,
     };
     if (image) productPayload.image = image;
-    // .select().single() is required: a bare insert returns NO row on
-    // Supabase, which used to surface as "Could not read back the new
-    // product id." on every save.
-    let inserted: unknown = null;
-    let insertErr: { message: string } | null = null;
-    {
-      const res = await supabase.from('products').insert(productPayload).select('id').single();
-      inserted = res.data;
-      insertErr = res.error;
-    }
-
-    // The photo column only exists after migration 0021 — if this database
-    // predates it, save the product WITHOUT the photo instead of failing.
-    if (insertErr && image && isMissingImageColumnError(insertErr.message)) {
-      delete productPayload.image;
-      const retry = await supabase.from('products').insert(productPayload).select('id').single();
-      inserted = retry.data;
-      insertErr = retry.error;
-      if (!insertErr) {
-        setStatus('Note: product saved without its photo — run migration 0021 (products.image) to enable photos.');
-      }
-    }
+    // The API inserts with RETURNING *, so .select().single() reads the
+    // inserted row's id straight back.
+    const res = await api.from('products').insert(productPayload).select('id').single();
+    const inserted: unknown = res.data;
+    const insertErr: { message: string } | null = res.error;
 
     if (insertErr) {
       setError(`Error: ${insertErr.message}`);
@@ -169,7 +152,7 @@ export default function ProductSetup() {
       base_units: v.baseUnits,
       sort_order: i,
     }));
-    const { error: variantErr } = await supabase.from('product_variants').insert(variantRows);
+    const { error: variantErr } = await api.from('product_variants').insert(variantRows);
     if (variantErr) {
       setError(`Product saved but variants failed: ${variantErr.message}`);
       return;

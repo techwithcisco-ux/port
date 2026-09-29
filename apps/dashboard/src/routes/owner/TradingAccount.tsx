@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { formatGHS, startOfMonth, startOfWeek } from '../../lib/utils';
 import type { Branch, Product, InventoryAllocation, Sale, InventoryIntake } from '@branchport/shared';
 import { saleBaseUnits } from '@branchport/shared';
@@ -49,9 +49,9 @@ export default function TradingAccount() {
   useEffect(() => {
     (async () => {
       const [p, b, a] = await Promise.all([
-        supabase.from('products').select('*'),
-        supabase.from('branches').select('*'),
-        supabase.from('inventory_allocations').select('*'),
+        api.from('products').select('*'),
+        api.from('branches').select('*'),
+        api.from('inventory_allocations').select('*'),
       ]);
       setProducts((p.data as Product[]) ?? []);
       setBranches((b.data as Branch[]) ?? []);
@@ -59,8 +59,8 @@ export default function TradingAccount() {
 
       // All-time data for opening stock calculation
       const [allS, allI] = await Promise.all([
-        supabase.from('sales').select('*'),
-        supabase.from('inventory_intake').select('*'),
+        api.from('sales').select('*'),
+        api.from('inventory_intake').select('*'),
       ]);
       setAllSales((allS.data as Sale[]) ?? []);
       setAllIntakes((allI.data as InventoryIntake[]) ?? []);
@@ -73,11 +73,11 @@ export default function TradingAccount() {
     setLoading(true);
 
     (async () => {
-      let salesQ = supabase.from('sales').select('*');
+      let salesQ = api.from('sales').select('*');
       if (from && period !== 'all') salesQ = salesQ.gte('sold_at', from);
       const [s, i] = await Promise.all([
         salesQ,
-        supabase.from('inventory_intake').select('*'),
+        api.from('inventory_intake').select('*'),
       ]);
       setSales((s.data as Sale[]) ?? []);
       setIntakes((i.data as InventoryIntake[]) ?? []);

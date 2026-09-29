@@ -1,9 +1,9 @@
 import { db } from './db';
-import { supabase } from './supabase';
+import { api } from './api';
 import type { Product, ProductVariant, InventoryAllocation } from '@branchport/shared';
 
-// Pushes every locally queued, not-yet-synced sale to Supabase. Each
-// sale's id is client-generated (uuid, see requirements Section 5) so
+// Pushes every locally queued, not-yet-synced sale to the branchport API.
+// Each sale's id is client-generated (uuid, see requirements Section 5) so
 // this is a plain insert, not an upsert — there is no edit path for a
 // sale once created (append-only rule, requirements 4.1), so a retried
 // push after a partial failure is safe: either the row already exists
@@ -12,10 +12,8 @@ import type { Product, ProductVariant, InventoryAllocation } from '@branchport/s
 //
 // The last failure reason is kept in module state (see getLastSyncError)
 // so the till can SHOW staff why sales aren't syncing instead of failing
-// silently. The classic cause: phone-only sign-in creates no Supabase
-// Auth session, so RLS rejects every insert ("new row violates row-level
-// security policy for table sales") until staff sign in with their
-// activation link + password.
+// silently. The classic cause: an expired/missing JWT — the API rejects
+// every insert until staff sign in again.
 let lastSyncError: string | null = null;
 let lastSyncAt: string | null = null;
 
@@ -28,10 +26,10 @@ export function getLastSyncAt(): string | null {
 }
 
 function shortSyncError(message: string): string {
-  if (/row-level security/i.test(message)) {
-    return 'Server refused the sale (permissions). Sign out and sign back in with your activation link + password — phone-only sign-in cannot sync.';
+  if (/not authenticated|session|token|jwt|401/i.test(message)) {
+    return 'Session expired — sign out and sign back in with your phone + password.';
   }
-  if (/network|fetch|failed to fetch|load failed/i.test(message)) {
+  if (/network|fetch|failed to fetch|load failed|could not reach/i.test(message)) {
     return 'No connection — sales are safe on this device and will sync when you are back online.';
   }
   return message;
@@ -46,13 +44,19 @@ export async function pushQueuedSales(): Promise<{ pushed: number; failed: numbe
     const { synced: _synced, ...saleRow } = sale;
     let error: { message: string; code?: string } | null = null;
     try {
-      const res = await supabase.from('sales').insert(saleRow);
+      const res = await api.from('sales').insert(saleRow);
       error = res.error;
     } catch (e) {
       error = { message: (e as Error).message || 'Network error' };
     }
 
-    if (error && (error as { code?: string }).code !== '23505' /* unique_violation = already synced */) {
+    // Already-synced rows (a retried push after a partial failure) surface
+    // as a duplicate-key error — Postgres code 23505 in the old client, a
+    // "duplicate key value violates unique constraint" message from the
+    // REST API. Either way: treat as synced, not failed.
+    const isDuplicate = (error as { code?: string })?.code === '23505'
+      || /duplicate key|unique constraint/i.test(error?.message ?? '');
+    if (error && !isDuplicate) {
       failed += 1;
       lastSyncError = shortSyncError(error.message);
       continue;
@@ -71,8 +75,8 @@ export async function pushQueuedSales(): Promise<{ pushed: number; failed: numbe
 // current stock allocation so the sell screen has fresh data to work from
 // offline. Call on login and whenever the app comes back online.
 export async function pullLatestCatalog(branchId: string): Promise<void> {
-  const { data: products } = await supabase.from('products').select('*');
-  const { data: variantRows } = await supabase.from('product_variants').select('*');
+  const { data: products } = await api.from('products').select('*');
+  const { data: variantRows } = await api.from('product_variants').select('*');
 
   const variantsByProduct = new Map<string, ProductVariant[]>();
   for (const v of (variantRows as ProductVariant[] | null) ?? []) {
@@ -86,7 +90,7 @@ export async function pullLatestCatalog(branchId: string): Promise<void> {
   }));
   if (enriched.length > 0) await db.products.bulkPut(enriched);
 
-  const { data: allocations } = await supabase
+  const { data: allocations } = await api
     .from('inventory_allocations')
     .select('*')
     .eq('branch_id', branchId);

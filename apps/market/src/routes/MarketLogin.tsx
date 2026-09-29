@@ -12,14 +12,13 @@ export default function MarketLogin() {
     setError('');
     setLoading(true);
 
-    // Small delay to prevent brute-force feel
-    await new Promise((r) => setTimeout(r, 400));
-
-    const ok = login(password);
+    // Verified server-side (MARKET_ADMIN_PASS on branchport-api) and
+    // exchanged for a 12h platform JWT.
+    const { error: loginError } = await login(password);
     setLoading(false);
 
-    if (!ok) {
-      setError('Invalid password. Access denied.');
+    if (loginError) {
+      setError(loginError);
       setPassword('');
     }
   };
@@ -90,8 +89,7 @@ export default function MarketLogin() {
 
         {/* Security notice */}
         <p className="text-center text-[10px] text-gray-600 mt-6 leading-relaxed">
-          🔒 Unauthorized access is prohibited.<br />
-          All access attempts are logged.
+          🔒 Unauthorized access is prohibited.
         </p>
       </div>
     </div>

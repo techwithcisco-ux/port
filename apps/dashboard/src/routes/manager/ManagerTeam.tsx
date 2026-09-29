@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Branch } from '@branchport/shared';
 
 export default function ManagerTeam() {
@@ -10,7 +10,7 @@ export default function ManagerTeam() {
 
   useEffect(() => {
     async function load() {
-      const { data, error } = await supabase.from('branches').select('*');
+      const { data, error } = await api.from('branches').select('*');
       if (!error) setBranches((data as Branch[]) ?? []);
       setLoading(false);
     }

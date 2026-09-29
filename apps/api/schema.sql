@@ -1,8 +1,8 @@
 -- ============================================================
 -- BranchPort on Render Postgres — canonical schema
 -- Run once against your Render Postgres (psql $DATABASE_URL -f schema.sql).
--- No Supabase dependencies: no auth.* schema, no auth.uid(), no
--- anon/authenticated roles. Access control lives in apps/api (JWT).
+-- No external auth schema and no database roles — access control lives
+-- entirely in apps/api (JWT).
 -- Includes fixes: products.image TEXT, query_log learning loop,
 -- users.password_hash + POS activation columns.
 -- ============================================================
@@ -40,13 +40,14 @@ CREATE TABLE IF NOT EXISTS branches (
 
 -- Local auth: phone + bcrypt password_hash issued as JWT by apps/api.
 -- No FK to auth.users (Render Postgres has no auth schema).
+-- Phone is globally unique: login is by phone alone.
 CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   business_id uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   branch_id uuid REFERENCES branches(id) ON DELETE SET NULL,
   role user_role NOT NULL,
   name text NOT NULL,
-  phone text,
+  phone text UNIQUE,
   password_hash text,
   pos_activated boolean NOT NULL DEFAULT false,
   pos_activation_token text,
@@ -150,7 +151,7 @@ CREATE TABLE IF NOT EXISTS supplier_reconciliations (
 );
 
 -- Append-only audit log. Written explicitly by apps/api on every mutation
--- (no auth.uid() trigger — Render has no Supabase auth context).
+-- (no database triggers — the API is the sole writer).
 CREATE TABLE IF NOT EXISTS audit_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   business_id uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -304,6 +305,53 @@ CREATE INDEX IF NOT EXISTS idx_audit_business ON audit_events(business_id);
 CREATE INDEX IF NOT EXISTS idx_audit_occurred ON audit_events(occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_query_log_created ON query_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_invoices_branch ON invoices(branch_id);
+
+-- ── Professional auth (access + refresh rotation, lockout, reset) ──
+-- Short-lived access JWTs are stateless; refresh tokens are opaque and
+-- stored hashed so a DB leak does not yield live sessions. Password
+-- resets are single-use hashed tokens. auth_audit records every auth
+-- decision (login, lockout, refresh reuse, reset) for forensics.
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_attempts integer NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at timestamptz;
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash text NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  revoked_at timestamptz,
+  replaced_by uuid REFERENCES refresh_tokens(id) ON DELETE SET NULL,
+  ip text
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash text NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS auth_audit (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  phone text,
+  action text NOT NULL,
+  success boolean NOT NULL DEFAULT true,
+  ip text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_expires ON refresh_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_reset_user ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_audit_user ON auth_audit(user_id);
+CREATE INDEX IF NOT EXISTS idx_auth_audit_created ON auth_audit(created_at DESC);
 
 -- ── Pricing consistency (no auth dependency — safe on Render) ──
 

@@ -1,8 +1,14 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import {
+  isPlatformAuthenticated,
+  platformLogin,
+  platformLogout,
+  SESSION_EXPIRED_EVENT,
+} from '../lib/api';
 
 interface MarketAuth {
   authenticated: boolean;
-  login: (password: string) => boolean;
+  login: (password: string) => Promise<{ error: string | null }>;
   logout: () => void;
 }
 
@@ -14,56 +20,34 @@ export function useMarketAuth() {
   return ctx;
 }
 
-const STORAGE_KEY = 'branchport_market_auth';
-const SESSION_TTL = 24 * 60 * 60 * 1000; // 24 hours
-
-// Admin credentials — fail CLOSED in production: with no password set,
-// login is impossible (the old 'market2024' fallback shipped in the JS
-// bundle, so anyone reading the code could walk in). Local dev keeps a
-// convenience default via import.meta.env.DEV only.
-function getAdminCredentials(): { username: string; password: string | null } {
-  const username = import.meta.env.VITE_MARKET_ADMIN_USER || 'admin';
-  const configured = import.meta.env.VITE_MARKET_ADMIN_PASS as string | undefined;
-  if (configured) return { username, password: configured };
-  if (import.meta.env.DEV) return { username, password: 'market2024' };
-  return { username, password: null };
-}
-
+/**
+ * Server-verified admin gate for the Market dashboard. The password is
+ * checked by the API (MARKET_ADMIN_PASS on branchport-api) and exchanged
+ * for a 12h platform JWT — it never ships in the JS bundle, and login is
+ * impossible when the server has no password configured. When the token
+ * expires mid-session the data layer fires SESSION_EXPIRED_EVENT and the
+ * app returns to the login gate.
+ */
 export function MarketAuthProvider({ children }: { children: ReactNode }) {
-  const [authenticated, setAuthenticated] = useState(false);
+  const [authenticated, setAuthenticated] = useState(isPlatformAuthenticated);
 
-  // Check stored session on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const { ts } = JSON.parse(stored);
-        if (Date.now() - ts < SESSION_TTL) {
-          setAuthenticated(true);
-          return;
-        }
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-    }
+    const onExpired = () => setAuthenticated(false);
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
   }, []);
 
-  const login = (password: string): boolean => {
-    const creds = getAdminCredentials();
-    if (!creds.password) return false;
-    if (password === creds.password) {
-      setAuthenticated(true);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ts: Date.now() }));
-      return true;
-    }
-    return false;
-  };
+  const login = useCallback(async (password: string): Promise<{ error: string | null }> => {
+    const res = await platformLogin(password);
+    if (!res.ok) return { error: res.error };
+    setAuthenticated(true);
+    return { error: null };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    platformLogout();
     setAuthenticated(false);
-    localStorage.removeItem(STORAGE_KEY);
-  };
+  }, []);
 
   return (
     <MarketAuthContext.Provider value={{ authenticated, login, logout }}>

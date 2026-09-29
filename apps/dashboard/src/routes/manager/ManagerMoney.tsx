@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Product, Sale, Expense } from '@branchport/shared';
 import { formatGHS, startOfMonth } from '../../lib/utils';
@@ -20,9 +20,9 @@ export default function ManagerMoney() {
     async function load() {
       const monthStart = startOfMonth();
       const [s, p, e] = await Promise.allSettled([
-        supabase.from('sales').select('*').gte('sold_at', monthStart),
-        supabase.from('products').select('*'),
-        supabase.from('expenses').select('*'),
+        api.from('sales').select('*').gte('sold_at', monthStart),
+        api.from('products').select('*'),
+        api.from('expenses').select('*'),
       ]);
       if (s.status === 'fulfilled' && !s.value.error) setSales((s.value.data as Sale[]) ?? []);
       if (p.status === 'fulfilled' && !p.value.error) setProducts((p.value.data as Product[]) ?? []);

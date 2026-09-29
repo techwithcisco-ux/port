@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, InventoryAllocation, Product, Sale } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
@@ -29,16 +29,16 @@ export default function OwnerStores() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function loadBranches() {
-    const result = await supabase.from('branches').select('*');
+    const result = await api.from('branches').select('*');
     if (!result.error) setBranches((result.data as Branch[]) ?? []);
   }
 
   async function load() {
     const [b, p, a, s] = await Promise.all([
-      supabase.from('branches').select('*'),
-      supabase.from('products').select('*'),
-      supabase.from('inventory_allocations').select('*'),
-      supabase.from('sales').select('*'),
+      api.from('branches').select('*'),
+      api.from('products').select('*'),
+      api.from('inventory_allocations').select('*'),
+      api.from('sales').select('*'),
     ]);
     if (!b.error) setBranches((b.data as Branch[]) ?? []);
     if (!p.error) setProducts((p.data as Product[]) ?? []);
@@ -54,7 +54,7 @@ export default function OwnerStores() {
     if (!newName.trim() || !profile?.business_id) return;
     setAddBusy(true);
     setAddError(null);
-    const { error: insertErr } = await supabase.from('branches').insert({
+    const { error: insertErr } = await api.from('branches').insert({
       business_id: profile.business_id,
       name: newName.trim(),
     });
@@ -74,7 +74,7 @@ export default function OwnerStores() {
   async function saveEdit() {
     if (!editingId || !editName.trim()) return;
     setEditBusy(true);
-    await supabase.from('branches').update({ name: editName.trim() }).eq('id', editingId);
+    await api.from('branches').update({ name: editName.trim() }).eq('id', editingId);
     setEditBusy(false);
     setEditingId(null);
     loadBranches();
@@ -83,7 +83,7 @@ export default function OwnerStores() {
   // ── Delete branch ──
   async function handleDelete() {
     if (!deletingId) return;
-    await supabase.from('branches').delete().eq('id', deletingId);
+    await api.from('branches').delete().eq('id', deletingId);
     setDeletingId(null);
     if (selectedBranch === deletingId) setSelectedBranch(null);
     loadBranches();

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Product, InventoryIntake, Supplier } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
 
@@ -14,9 +14,9 @@ export default function OwnerProducts() {
   useEffect(() => {
     async function load() {
       const [p, i, s] = await Promise.all([
-        supabase.from('products').select('*'),
-        supabase.from('inventory_intake').select('*').order('created_at', { ascending: false }).limit(10),
-        supabase.from('suppliers').select('*'),
+        api.from('products').select('*'),
+        api.from('inventory_intake').select('*').order('created_at', { ascending: false }).limit(10),
+        api.from('suppliers').select('*'),
       ]);
       if (!p.error) setProducts((p.data as Product[]) ?? []);
       if (!i.error) setIntakes((i.data as InventoryIntake[]) ?? []);

@@ -1,7 +1,11 @@
-# BranchPort — Python/Django edition (replaces React + Supabase)
+# BranchPort — Python/Django edition (legacy alternative build)
 
 Zero-config local run, SQLite by default. Full Python UI (server-rendered),
 Django admin, append-only sales + audit trail, role-gated owner/manager/staff.
+
+> Legacy reference build. The live platform is the JS stack in `apps/`
+> (Express API + Postgres, deployed via `render.yaml`) — this folder is
+> not part of that deployment.
 
 ## Run
 
@@ -24,15 +28,18 @@ Or create your own business at `/signup/`.
 
 ## What was fixed from the JS codebase
 
-1. **Startup crash**: `apps/dashboard/src/lib/supabase.ts` and `apps/pos/src/lib/supabase.ts`
-   threw on import when `VITE_SUPABASE_URL/KEY` were missing (fresh clone = white screen).
-   Now they warn + use a placeholder client so the app renders and login shows a friendly error.
-   Fixed in this repo.
+1. **Startup crash**: the original hosted-DB client setup in the JS apps
+   threw on import when its env vars were missing (fresh clone = white
+   screen). The JS apps have since been rewritten API-only (JWT auth via
+   `apps/api`), which removes that failure mode entirely; the Django
+   build never had it.
 2. **Unsold-products bug**: `apps/pos/src/lib/inventory.ts getUnsoldProducts()` filtered
    `remaining > 0 && potentialRevenue === 0` — impossible when stock remains, so the table was
    always empty. Fixed to `remaining > 0 && revenueToday === 0`.
-3. **Missing demo mode**: docs promised `VITE_DEMO_MODE` + `packages/shared/src/demo.ts`
-   but neither exists in code. The Django `seed_demo` command restores a real zero-config demo.
+3. **Missing demo mode**: old docs promised `VITE_DEMO_MODE` + a demo
+   dataset that never existed in the JS code. The Django `seed_demo`
+   command provides a real zero-config demo (JS stack: create users via
+   signup instead).
 
 ## Trust model (ported from Postgres RLS/triggers)
 

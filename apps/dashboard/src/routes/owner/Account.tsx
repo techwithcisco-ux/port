@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import BackButton from '../../components/BackButton';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { BUSINESS_TYPE_LABELS, BUSINESS_FORM_LABELS } from '@branchport/shared';
 import type { BusinessType, BusinessForm } from '@branchport/shared';
 
@@ -48,12 +48,12 @@ export default function Account() {
     if (!profile) return;
     setOwnerName(profile.name ?? '');
     setOwnerPhone(profile.phone ?? '');
-    // Load business info from Supabase first, then fallback to localStorage
+    // Load business info from the API first, then fallback to localStorage
     async function loadBiz() {
       const bizId = profile?.business_id;
       if (!bizId) return;
       try {
-        const { data } = await supabase.from('businesses').select('*').eq('id', bizId).single();
+        const { data } = await api.from('businesses').select('*').eq('id', bizId).single();
         if (data) {
           setBizName(String(data.name ?? ''));
           setBizType(String(data.business_type ?? ''));
@@ -77,15 +77,15 @@ export default function Account() {
     setStatus(null);
 
     try {
-      // Save to Supabase if we have a business_id
+      // Save to the API if we have a business_id
       if (profile.business_id) {
-        await supabase.from('businesses').update({
+        await api.from('businesses').update({
           name: bizName.trim(),
           business_type: bizType,
           business_form: bizForm,
           business_categories: bizCategories,
         }).eq('id', profile.business_id);
-        await supabase.from('users').update({
+        await api.from('users').update({
           name: ownerName.trim(),
           phone: ownerPhone.trim(),
         }).eq('id', profile.id);

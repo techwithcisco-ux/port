@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { formatGHS, startOfWeek, startOfMonth } from '../../lib/utils';
 import type { Invoice } from '@branchport/shared';
 
@@ -106,7 +106,7 @@ export default function Documents() {
     try {
       const found = PERIODS.find((p) => p.key === period);
       const from = found ? found.from() : '';
-      let q = supabase.from('invoices').select('*').order('created_at', { ascending: false });
+      let q = api.from('invoices').select('*').order('created_at', { ascending: false });
       if (from) q = q.gte('created_at', from);
       const { data } = await q;
       setInvoices((data as Invoice[]) ?? []);

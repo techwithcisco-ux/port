@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
 import { ColorLegend, StatusBadge, ColorStatCard, BarMeter } from '../../components/Visuals';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatGHS } from '../../lib/utils';
 import type { Debtor, DebtorPayment, Creditor, CreditorPayment } from '@branchport/shared';
@@ -174,10 +174,10 @@ export default function Ledger() {
     setLoading(true);
     try {
       const [d, dp, c, cp] = await Promise.allSettled([
-        supabase.from('debtors').select('*'),
-        supabase.from('debtor_payments').select('*'),
-        supabase.from('creditors').select('*'),
-        supabase.from('creditor_payments').select('*'),
+        api.from('debtors').select('*'),
+        api.from('debtor_payments').select('*'),
+        api.from('creditors').select('*'),
+        api.from('creditor_payments').select('*'),
       ]);
       setDebtors((d.status === 'fulfilled' ? d.value.data : null as any) ?? []);
       setDebtorPayments((dp.status === 'fulfilled' ? dp.value.data : null as any) ?? []);
@@ -193,10 +193,10 @@ export default function Ledger() {
     if (!profile) return;
     const debtor = debtors.find((d) => d.id === debtorId);
     if (!debtor) return;
-    await supabase.from('debtor_payments').insert({ debtor_id: debtorId, amount, note: `Payment by ${debtor.customer_name}`, created_by: profile.id });
+    await api.from('debtor_payments').insert({ debtor_id: debtorId, amount, note: `Payment by ${debtor.customer_name}`, created_by: profile.id });
     const newPaid = debtor.amount_paid + amount;
     const newOwed = debtor.original_amount - newPaid;
-    await supabase.from('debtors').update({ amount_paid: newPaid, amount_owed: Math.max(newOwed, 0), status: newOwed <= 0 ? 'settled' : 'partial', updated_at: new Date().toISOString() }).eq('id', debtorId);
+    await api.from('debtors').update({ amount_paid: newPaid, amount_owed: Math.max(newOwed, 0), status: newOwed <= 0 ? 'settled' : 'partial', updated_at: new Date().toISOString() }).eq('id', debtorId);
     void loadData();
   }
 
@@ -204,10 +204,10 @@ export default function Ledger() {
     if (!profile) return;
     const creditor = creditors.find((c) => c.id === creditorId);
     if (!creditor) return;
-    await supabase.from('creditor_payments').insert({ creditor_id: creditorId, amount, note: `Payment to ${creditor.supplier_name}`, created_by: profile.id });
+    await api.from('creditor_payments').insert({ creditor_id: creditorId, amount, note: `Payment to ${creditor.supplier_name}`, created_by: profile.id });
     const newPaid = creditor.amount_paid + amount;
     const newOwed = creditor.original_amount - newPaid;
-    await supabase.from('creditors').update({ amount_paid: newPaid, amount_owed: Math.max(newOwed, 0), status: newOwed <= 0 ? 'settled' : 'partial', updated_at: new Date().toISOString() }).eq('id', creditorId);
+    await api.from('creditors').update({ amount_paid: newPaid, amount_owed: Math.max(newOwed, 0), status: newOwed <= 0 ? 'settled' : 'partial', updated_at: new Date().toISOString() }).eq('id', creditorId);
     void loadData();
   }
 

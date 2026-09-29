@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Sale, AuditEvent, Branch, InventoryAllocation, Product, AppUser } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
 
@@ -38,13 +38,13 @@ export default function FlagsPanel() {
     const sinceIso = since.toISOString();
 
     Promise.all([
-      supabase.from('sales').select('*').eq('price_flagged', true).order('sold_at', { ascending: false }).limit(100),
-      supabase.from('flagged_backdated_events').select('*').order('occurred_at', { ascending: false }).limit(100),
-      supabase.from('inventory_allocations').select('*').gte('allocated_at', sinceIso),
-      supabase.from('sales').select('branch_id, product_id').gte('sold_at', sinceIso),
-      supabase.from('branches').select('*'),
-      supabase.from('products').select('*'),
-      supabase.from('users').select('id, name'),
+      api.from('sales').select('*').eq('price_flagged', true).order('sold_at', { ascending: false }).limit(100),
+      api.from('flagged_backdated_events').select('*').order('occurred_at', { ascending: false }).limit(100),
+      api.from('inventory_allocations').select('*').gte('allocated_at', sinceIso),
+      api.from('sales').select('branch_id, product_id').gte('sold_at', sinceIso),
+      api.from('branches').select('*'),
+      api.from('products').select('*'),
+      api.from('users').select('id, name'),
     ]).then(([fl, bd, al, sd, br, pr, us]) => {
       setFlaggedSales((fl.data as Sale[]) ?? []);
       setBackdated((bd.data as AuditEvent[]) ?? []);

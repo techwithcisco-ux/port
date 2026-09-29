@@ -1,6 +1,5 @@
-// Mirrors supabase/migrations/0001_schema.sql. Keep in sync by hand until
-// the project is wired up to generate these from the live schema
-// (`supabase gen types typescript`).
+// Mirrors apps/api/schema.sql (the single source of truth for the Render
+// Postgres database). Keep in sync by hand when the schema changes.
 
 export type UserRole = 'owner' | 'manager' | 'staff';
 export type SaleUnitType = 'bulk' | 'retail';
@@ -125,9 +124,9 @@ export interface AppUser {
   role: UserRole;
   name: string;
   phone?: string | null;
-  // Owner-generated password, stored as a simple base64 encoding
-  // mode (sufficient for the in-memory mock). In production this would be
-  // a proper bcrypt/scrypt hash via Supabase Auth.
+  // Bcrypt hash managed by apps/api (signup, login, POS activation). The
+  // API is the only reader/writer — it never leaves the server; clients
+  // only see the publicUser projection.
   password_hash?: string | null;
   // POS activation — phone-number-based auth. The owner generates a
   // unique activation link when onboarding a staff member. Opening that

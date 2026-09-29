@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Product, Sale, InventoryAllocation, Invoice, Debtor, Creditor } from '@branchport/shared';
 import { formatGHS, startOfMonth } from '../../lib/utils';
 
@@ -21,12 +21,12 @@ export default function OwnerMoney() {
     async function load() {
       const monthStart = startOfMonth();
       const [s, p, a, inv, d, c] = await Promise.allSettled([
-        supabase.from('sales').select('*').gte('sold_at', monthStart),
-        supabase.from('products').select('*'),
-        supabase.from('inventory_allocations').select('*'),
-        supabase.from('invoices').select('*'),
-        supabase.from('debtors').select('*'),
-        supabase.from('creditors').select('*'),
+        api.from('sales').select('*').gte('sold_at', monthStart),
+        api.from('products').select('*'),
+        api.from('inventory_allocations').select('*'),
+        api.from('invoices').select('*'),
+        api.from('debtors').select('*'),
+        api.from('creditors').select('*'),
       ]);
       const ok = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' && !r.value.error;
       if (ok(s)) setSales((s.status === 'fulfilled' ? s.value.data : null) ?? []);

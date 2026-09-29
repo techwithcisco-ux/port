@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
 import { ColorLegend, BarMeter, SalesFunnel, StatusBadge, ColorStatCard } from '../../components/Visuals';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { formatGHS, startOfWeek, startOfMonth } from '../../lib/utils';
 import { calculateBusinessAnalytics } from '@branchport/shared';
 import type { Branch, Expense, ExpensePayment, InventoryAllocation, Product, Sale } from '@branchport/shared';
@@ -36,9 +36,9 @@ export default function ProfitLoss() {
   useEffect(() => {
     (async () => {
       const [p, b, a] = await Promise.allSettled([
-        supabase.from('products').select('*'),
-        supabase.from('branches').select('*'),
-        supabase.from('inventory_allocations').select('*'),
+        api.from('products').select('*'),
+        api.from('branches').select('*'),
+        api.from('inventory_allocations').select('*'),
       ]);
       setProducts((p.status === 'fulfilled' ? p.value.data : null as any) ?? []);
       setBranches((b.status === 'fulfilled' ? b.value.data : null as any) ?? []);
@@ -52,9 +52,9 @@ export default function ProfitLoss() {
     setLoading(true);
     (async () => {
       const [s, e, ep] = await Promise.allSettled([
-        from ? supabase.from('sales').select('*').gte('sold_at', from) : supabase.from('sales').select('*'),
-        supabase.from('expenses').select('*'),
-        supabase.from('expense_payments').select('*'),
+        from ? api.from('sales').select('*').gte('sold_at', from) : api.from('sales').select('*'),
+        api.from('expenses').select('*'),
+        api.from('expense_payments').select('*'),
       ]);
       setSales((s.status === 'fulfilled' ? s.value.data : null as any) ?? []);
       setExpenses((e.status === 'fulfilled' ? e.value.data : null as any) ?? []);

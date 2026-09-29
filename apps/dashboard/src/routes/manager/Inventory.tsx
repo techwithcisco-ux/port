@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Product, Supplier } from '@branchport/shared';
 
@@ -21,8 +21,8 @@ export default function Inventory() {
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.from('products').select('*').then(({ data }: any) => setProducts((data as Product[]) ?? []));
-    supabase.from('suppliers').select('*').then(({ data }: any) => setSuppliers((data as Supplier[]) ?? []));
+    api.from('products').select('*').then(({ data }: any) => setProducts((data as Product[]) ?? []));
+    api.from('suppliers').select('*').then(({ data }: any) => setSuppliers((data as Supplier[]) ?? []));
   }, []);
 
   async function handleSubmit(e: FormEvent) {
@@ -32,7 +32,7 @@ export default function Inventory() {
 
     const paid = paidOnCredit ? Number(amountPaid || 0) : Number(costPriceTotal);
 
-    const { error } = await supabase.from('inventory_intake').insert({
+    const { error } = await api.from('inventory_intake').insert({
       business_id: profile.business_id,
       supplier_id: supplierId,
       product_id: productId,

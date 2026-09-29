@@ -13,8 +13,8 @@ export function isImageSizeOk(b64: string): boolean {
 }
 
 // True when a product insert/update failed only because the database has
-// no products.image column yet (migration 0021 never applied). Callers use
-// this to retry the write WITHOUT the photo instead of losing the product.
+// no products.image column. Callers use this to retry the write WITHOUT
+// the photo instead of losing the product.
 export function isMissingImageColumnError(msg: string): boolean {
   return /image/i.test(msg) && /column|schema cache|no such|unknown|does not exist/i.test(msg);
 }

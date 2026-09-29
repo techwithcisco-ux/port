@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getPlatformStats, getMarketTicker, type PlatformStats, type MarketTicker } from '../lib/api';
+import LoadError from '../components/LoadError';
 
 function ghs(n: number): string {
   return `GHS ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -13,19 +14,27 @@ export default function MarketHome() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [ticker, setTicker] = useState<MarketTicker[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    async function load() {
+  const load = useCallback(async () => {
+    try {
       const [s, t] = await Promise.all([getPlatformStats(), getMarketTicker()]);
       setStats(s);
       setTicker(t);
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load market data.');
+    } finally {
       setLoading(false);
     }
-    void load();
-    // Refresh every 30 seconds for live data
-    const interval = setInterval(load, 30000);
-    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    void load();
+    // Refresh every 30 seconds for live data (and to recover from errors)
+    const interval = setInterval(() => void load(), 30000);
+    return () => clearInterval(interval);
+  }, [load]);
 
   if (loading) {
     return (
@@ -36,6 +45,10 @@ export default function MarketHome() {
         </div>
       </div>
     );
+  }
+
+  if (error) {
+    return <LoadError message={error} onRetry={() => void load()} />;
   }
 
   return (

@@ -6,11 +6,11 @@
  * rankings, and market reports. This is the data layer that powers the
  * Market Intelligence dashboard — the "Bloomberg Terminal for Ghana retail".
  *
- * Reads from the Supabase backend.
- * In production, this would query the actual database with RLS.
+ * Reads from the branchport API (business-scoped reads for the
+ * signed-in account's own data).
  */
 
-import { supabase } from './supabase';
+import { api } from './api';
 import type {
   Business,
   Branch,
@@ -49,10 +49,10 @@ interface RawData {
 
 async function fetchAllData(): Promise<RawData> {
   const [bizRes, brRes, prodRes, saleRes] = await Promise.all([
-    supabase.from('businesses').select('*'),
-    supabase.from('branches').select('*'),
-    supabase.from('products').select('*'),
-    supabase.from('sales').select('*'),
+    api.from('businesses').select('*'),
+    api.from('branches').select('*'),
+    api.from('products').select('*'),
+    api.from('sales').select('*'),
   ]);
 
   return {

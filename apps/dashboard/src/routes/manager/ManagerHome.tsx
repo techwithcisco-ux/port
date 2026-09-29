@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import { ColorLegend, StatusBadge, ColorStatCard, GaugeMeter, BarMeter, SalesFunnel } from '../../components/Visuals';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Sale, InventoryIntake, Product, InventoryAllocation } from '@branchport/shared';
 import { formatGHS, startOfToday, startOfWeek, startOfMonth } from '../../lib/utils';
@@ -27,12 +27,12 @@ export default function ManagerHome() {
   useEffect(() => {
     const from = PERIODS.find((p) => p.key === period)?.from() ?? startOfToday();
     Promise.allSettled([
-      supabase.from('sales').select('*').gte('sold_at', from),
-      supabase.from('inventory_intake').select('amount_owed'),
-      supabase.from('supplier_payments').select('amount'),
-      supabase.from('products').select('*'),
-      supabase.from('inventory_allocations').select('*'),
-      supabase.from('branches').select('*'),
+      api.from('sales').select('*').gte('sold_at', from),
+      api.from('inventory_intake').select('amount_owed'),
+      api.from('supplier_payments').select('amount'),
+      api.from('products').select('*'),
+      api.from('inventory_allocations').select('*'),
+      api.from('branches').select('*'),
     ]).then((results) => {
       const unwrap = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value.data ?? [] : [];
       const [s, i, p, pr, a, b] = results;

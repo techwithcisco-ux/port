@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatGHS } from '../../lib/utils';
 import type { Expense, ExpensePayment } from '@branchport/shared';
@@ -109,8 +109,8 @@ export default function Expenses() {
     setLoading(true);
     try {
       const [e, p] = await Promise.allSettled([
-        supabase.from('expenses').select('*'),
-        supabase.from('expense_payments').select('*'),
+        api.from('expenses').select('*'),
+        api.from('expense_payments').select('*'),
       ]);
       setExpenses((e.status === 'fulfilled' ? e.value.data : null as any) ?? []);
       setPayments((p.status === 'fulfilled' ? p.value.data : null as any) ?? []);
@@ -125,7 +125,7 @@ export default function Expenses() {
     if (!profile || !description.trim() || !amount) return;
     setStatus(null);
 
-    const { error } = await supabase.from('expenses').insert({
+    const { error } = await api.from('expenses').insert({
       business_id: profile.business_id,
       branch_id: profile.branch_id ?? null,
       category,
@@ -153,7 +153,7 @@ export default function Expenses() {
     const expense = expenses.find((e) => e.id === expenseId);
     if (!expense) return;
 
-    const { error } = await supabase.from('expense_payments').insert({
+    const { error } = await api.from('expense_payments').insert({
       expense_id: expenseId,
       business_id: expense.business_id,
       amount: expense.amount,

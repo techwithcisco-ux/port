@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getItemsAnalytics, type ItemAnalytics } from '../lib/api';
+import LoadError from '../components/LoadError';
 
 const TREND_ICON = { rising: '▲', falling: '▼', stable: '—' };
 const TREND_COLOR = { rising: 'text-green-700', falling: 'text-red-600', stable: 'text-gray-400' };
@@ -12,15 +13,23 @@ function ghs(n: number): string {
 export default function ItemsTracker() {
   const [items, setItems] = useState<ItemAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
-  useEffect(() => {
-    getItemsAnalytics().then((data) => {
-      setItems(data);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setItems(await getItemsAnalytics());
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load items.');
+    } finally {
       setLoading(false);
-    });
+    }
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   const categories = ['all', ...new Set(items.map((i) => i.category))];
 
@@ -61,7 +70,9 @@ export default function ItemsTracker() {
         </div>
       </div>
 
-      {loading ? (
+      {error ? (
+        <LoadError message={error} onRetry={() => void load()} />
+      ) : loading ? (
         <div className="flex items-center justify-center py-20">
           <p className="text-gray-500">Loading items…</p>
         </div>

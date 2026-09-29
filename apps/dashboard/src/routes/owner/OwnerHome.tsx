@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Branch, InventoryAllocation, Invoice, Product, Sale } from '@branchport/shared';
 import { formatGHS, startOfWeek, startOfMonth } from '../../lib/utils';
 import { PerformanceTube, IconCurrency } from '../../components/Icons';
@@ -66,11 +66,11 @@ export default function OwnerHome() {
     async function refresh() {
       if (!navigator.onLine) return;
       const [b, p, a, inv, s] = await Promise.allSettled([
-        supabase.from('branches').select('*'),
-        supabase.from('products').select('*'),
-        supabase.from('inventory_allocations').select('*'),
-        supabase.from('invoices').select('*'),
-        supabase.from('sales').select('*').gte('sold_at', daysAgo(365)),
+        api.from('branches').select('*'),
+        api.from('products').select('*'),
+        api.from('inventory_allocations').select('*'),
+        api.from('invoices').select('*'),
+        api.from('sales').select('*').gte('sold_at', daysAgo(365)),
       ]);
       const ok = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' && !r.value.error;
       if (ok(b)) setBranches((b.status === 'fulfilled' ? b.value.data : null as any) ?? []);

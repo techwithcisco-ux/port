@@ -2,7 +2,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 // The dashboard serves managers and owners. A staff account that signs in
-// here (Supabase Auth doesn't know about app roles) is pointed at the
+// here (login succeeds before the app role is checked) is pointed at the
 // point-of-sale app instead of being silently bounced in a redirect loop.
 // In production set VITE_POS_URL; the dev default is the POS dev server.
 export default function StaffNotice() {

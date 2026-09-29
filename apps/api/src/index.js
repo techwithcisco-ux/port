@@ -4,7 +4,11 @@ import cors from 'cors';
 import crypto from 'crypto';
 import { query } from './db.js';
 import {
-  normalizePhone, signToken, hashPassword, verifyPassword,
+  normalizePhone, validatePassword, signAccessToken, signPlatformToken,
+  hashPassword, verifyPassword, issueRefreshToken, rotateRefreshToken,
+  revokeRefreshToken, revokeAllSessions, listSessions, isLocked,
+  recordFailedLogin, clearFailedLogin, createPasswordReset,
+  consumePasswordReset, generateTempPassword, recordAuthAudit,
   authRequired, requireRole, loadUserById, publicUser,
 } from './auth.js';
 import { TABLES, AUDITED, WRITE_ROLES, assertTable, assertColumn } from './tables.js';
@@ -15,7 +19,39 @@ app.use(express.json({ limit: '2mb' }));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// ── Auth: owner signup ───────────────────────────────────────
+// ── Login rate limiter (in-memory, per IP) ────────────────────
+// Single Render instance — a Map is enough. 10 attempts / 15 min / IP;
+// successful logins do not count toward the budget.
+const RATE_WINDOW_MS = 15 * 60 * 1000;
+const RATE_MAX = 10;
+const loginAttempts = new Map(); // ip -> number[] timestamps
+
+function rateLimit(req, res, next) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const tries = (loginAttempts.get(ip) || []).filter((t) => now - t < RATE_WINDOW_MS);
+  if (tries.length >= RATE_MAX) {
+    const waitMs = RATE_WINDOW_MS - (now - tries[0]);
+    return res.status(429).json({
+      error: `Too many attempts. Try again in ${Math.ceil(waitMs / 60000)} minute(s).`,
+    });
+  }
+  tries.push(now);
+  loginAttempts.set(ip, tries);
+  if (loginAttempts.size > 5000) { // keep the map bounded
+    for (const [k, v] of loginAttempts) {
+      if (v.every((t) => now - t >= RATE_WINDOW_MS)) loginAttempts.delete(k);
+    }
+  }
+  next();
+}
+
+function rateLimitClear(req) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  loginAttempts.delete(ip);
+}
+
+// ── Auth: owner signup (issues access + refresh pair) ──────────
 app.post('/auth/signup-owner', async (req, res) => {
   try {
     const { name, phone, businessName, businessType, password } = req.body || {};
@@ -23,7 +59,8 @@ app.post('/auth/signup-owner', async (req, res) => {
     if (!String(name || '').trim()) return res.status(400).json({ error: 'Your name is required.' });
     if (!cleanPhone || cleanPhone.length < 9) return res.status(400).json({ error: 'Valid phone required.' });
     if (!String(businessName || '').trim()) return res.status(400).json({ error: 'Business name required.' });
-    if (!password || String(password).length < 7) return res.status(400).json({ error: 'Password >= 7 chars.' });
+    const pwErr = validatePassword(password);
+    if (pwErr) return res.status(400).json({ error: pwErr });
 
     const existing = await query('SELECT id FROM users WHERE phone = $1 LIMIT 1', [cleanPhone]);
     if (existing.rows.length > 0) return res.status(409).json({ error: 'Phone already registered. Sign in.' });
@@ -35,8 +72,8 @@ app.post('/auth/signup-owner', async (req, res) => {
     );
     const business = biz.rows[0];
     const userRes = await query(
-      `INSERT INTO users (business_id, branch_id, role, name, phone, password_hash)
-       VALUES ($1, NULL, 'owner', $2, $3, $4) RETURNING *`,
+      `INSERT INTO users (business_id, branch_id, role, name, phone, password_hash, password_changed_at)
+       VALUES ($1, NULL, 'owner', $2, $3, $4, now()) RETURNING *`,
       [business.id, String(name).trim(), cleanPhone, pwHash],
     );
     const user = userRes.rows[0];
@@ -46,49 +83,82 @@ app.post('/auth/signup-owner', async (req, res) => {
     await query('UPDATE businesses SET owner_user_id = $1 WHERE id = $2', [user.id, business.id]);
 
     const full = await loadUserById(user.id);
-    const token = signToken(full);
-    res.json({ token, user: publicUser(full) });
+    const accessToken = signAccessToken(full);
+    const { token: refreshToken } = await issueRefreshToken(full.id, req.ip);
+    await recordAuthAudit(full.id, cleanPhone, 'signup_owner', true, req.ip);
+    res.json({ accessToken, refreshToken, user: publicUser(full) });
   } catch (e) {
     console.error('signup-owner failed:', e.message);
     res.status(500).json({ error: 'Signup failed. Try again.' });
   }
 });
 
-// ── Auth: login (all roles, phone + password) ────────────────
-app.post('/auth/login', async (req, res) => {
+// ── Auth: login (all roles, phone + password, lockout) ────────
+app.post('/auth/login', rateLimit, async (req, res) => {
   try {
     const { phone, password } = req.body || {};
     const cleanPhone = normalizePhone(phone || '');
     if (!cleanPhone || !password) return res.status(400).json({ error: 'Phone and password required.' });
     const r = await query('SELECT * FROM users WHERE phone = $1 LIMIT 1', [cleanPhone]);
     const user = r.rows[0];
+    // Generic message either way: no account enumeration.
     if (!user) return res.status(401).json({ error: 'Wrong phone number or password.' });
+    if (isLocked(user)) {
+      await recordAuthAudit(user.id, cleanPhone, 'login_locked', false, req.ip);
+      return res.status(423).json({ error: 'Account locked after too many attempts. Try again in 15 minutes.' });
+    }
     const ok = await verifyPassword(String(password), user.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Wrong phone number or password.' });
-    const token = signToken(user);
-    res.json({ token, user: publicUser(user) });
+    if (!ok) {
+      await recordFailedLogin(user);
+      await recordAuthAudit(user.id, cleanPhone, 'login', false, req.ip);
+      return res.status(401).json({ error: 'Wrong phone number or password.' });
+    }
+    rateLimitClear(req);
+    await clearFailedLogin(user.id);
+    const full = await loadUserById(user.id);
+    const accessToken = signAccessToken(full);
+    const { token: refreshToken } = await issueRefreshToken(full.id, req.ip);
+    await recordAuthAudit(full.id, cleanPhone, 'login', true, req.ip);
+    res.json({ accessToken, refreshToken, user: publicUser(full) });
   } catch (e) {
     console.error('login failed:', e.message);
     res.status(500).json({ error: 'Login failed.' });
   }
 });
 
-// ── Auth: POS login (password if set, else passwordless for legacy staff)
-app.post('/auth/pos-login', async (req, res) => {
+// ── Auth: POS login (phone + password ALWAYS required) ─────────
+// No passwordless fallback: every till account has a bcrypt password
+// set at provisioning. Staff without a branch are rejected — the till
+// is branch-scoped and has no stock to sell otherwise.
+app.post('/auth/pos-login', rateLimit, async (req, res) => {
   try {
     const { phone, password } = req.body || {};
     const cleanPhone = normalizePhone(phone || '');
-    if (!cleanPhone) return res.status(400).json({ error: 'Phone required.' });
+    if (!cleanPhone || !password) {
+      return res.status(400).json({ error: 'Phone and password required.', passwordRequired: true });
+    }
     const r = await query('SELECT * FROM users WHERE phone = $1 LIMIT 1', [cleanPhone]);
     const user = r.rows[0];
-    if (!user) return res.status(404).json({ error: 'No account for this phone. Ask your manager.' });
+    if (!user) return res.status(401).json({ error: 'Wrong phone number or password.' });
     if (user.role !== 'staff' && user.role !== 'manager') return res.status(403).json({ error: 'No POS access.' });
-    if (user.password_hash) {
-      if (!password) return res.status(401).json({ error: 'Password required for this account.', passwordRequired: true });
-      const ok = await verifyPassword(String(password), user.password_hash);
-      if (!ok) return res.status(401).json({ error: 'Wrong phone number or password.' });
+    if (isLocked(user)) {
+      await recordAuthAudit(user.id, cleanPhone, 'pos_login_locked', false, req.ip);
+      return res.status(423).json({ error: 'Account locked after too many attempts. Try again in 15 minutes.' });
     }
-    res.json({ token: signToken(user), user: publicUser(user) });
+    const ok = await verifyPassword(String(password), user.password_hash);
+    if (!ok) {
+      await recordFailedLogin(user);
+      await recordAuthAudit(user.id, cleanPhone, 'pos_login', false, req.ip);
+      return res.status(401).json({ error: 'Wrong phone number or password.' });
+    }
+    if (!user.branch_id) return res.status(403).json({ error: 'This account has no branch assigned. Ask your manager.' });
+    rateLimitClear(req);
+    await clearFailedLogin(user.id);
+    const full = await loadUserById(user.id);
+    const accessToken = signAccessToken(full);
+    const { token: refreshToken } = await issueRefreshToken(full.id, req.ip);
+    await recordAuthAudit(full.id, cleanPhone, 'pos_login', true, req.ip);
+    res.json({ accessToken, refreshToken, user: publicUser(full) });
   } catch (e) {
     console.error('pos-login failed:', e.message);
     res.status(500).json({ error: 'POS login failed.' });
@@ -105,10 +175,132 @@ app.post('/auth/pos-activate', async (req, res) => {
     // Single-use: burn the token so a leaked link can't be replayed.
     await query('UPDATE users SET pos_activated = true, pos_activation_token = NULL WHERE id = $1', [user.id]);
     const full = await loadUserById(user.id);
-    res.json({ token: signToken(full), user: publicUser(full) });
+    const accessToken = signAccessToken(full);
+    const { token: refreshToken } = await issueRefreshToken(full.id, req.ip);
+    await recordAuthAudit(full.id, full.phone, 'pos_activate', true, req.ip);
+    res.json({ accessToken, refreshToken, user: publicUser(full) });
   } catch (e) {
     console.error('pos-activate failed:', e.message);
     res.status(500).json({ error: 'Activation failed.' });
+  }
+});
+
+// ── Auth: refresh / logout ─────────────────────────────────────
+app.post('/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body || {};
+    if (!refreshToken) return res.status(400).json({ error: 'Refresh token required.' });
+    const { user, token } = await rotateRefreshToken(String(refreshToken), req.ip);
+    res.json({ accessToken: signAccessToken(user), refreshToken: token, user: publicUser(user) });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Refresh failed.' });
+  }
+});
+
+app.post('/auth/logout', async (req, res) => {
+  try {
+    const { refreshToken } = req.body || {};
+    if (refreshToken) await revokeRefreshToken(String(refreshToken));
+    res.json({ ok: true });
+  } catch {
+    res.json({ ok: true });
+  }
+});
+
+app.post('/auth/logout-all', authRequired, async (req, res) => {
+  await revokeAllSessions(req.auth.sub);
+  await recordAuthAudit(req.auth.sub, null, 'logout_all', true, req.ip);
+  res.json({ ok: true });
+});
+
+app.get('/auth/sessions', authRequired, async (req, res) => {
+  res.json({ data: await listSessions(req.auth.sub) });
+});
+
+// ── Auth: password change + reset ──────────────────────────────
+app.post('/auth/change-password', authRequired, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    const me = await loadUserById(req.auth.sub);
+    if (!me) return res.status(404).json({ error: 'User not found' });
+    const ok = await verifyPassword(String(currentPassword || ''), me.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Current password is wrong.' });
+    const pwErr = validatePassword(newPassword);
+    if (pwErr) return res.status(400).json({ error: pwErr });
+    await query('UPDATE users SET password_hash = $2, password_changed_at = now(), failed_attempts = 0, locked_until = NULL WHERE id = $1', [
+      me.id, await hashPassword(String(newPassword)),
+    ]);
+    // Revoke everything, then issue a fresh pair for this device.
+    await revokeAllSessions(me.id);
+    const full = await loadUserById(me.id);
+    const accessToken = signAccessToken(full);
+    const { token: refreshToken } = await issueRefreshToken(full.id, req.ip);
+    await recordAuthAudit(me.id, me.phone, 'change_password', true, req.ip);
+    res.json({ accessToken, refreshToken, user: publicUser(full) });
+  } catch (e) {
+    res.status(500).json({ error: 'Password change failed.' });
+  }
+});
+
+// Self-service reset: request always answers ok (no enumeration).
+// NOTE: there is no SMS gateway yet — the token is stored hashed and
+// delivery is out-of-band. Owners locked out with no manager above them
+// need DB access (psql) or a fresh admin reset from another owner.
+app.post('/auth/password-reset/request', rateLimit, async (req, res) => {
+  try {
+    const { phone } = req.body || {};
+    const cleanPhone = normalizePhone(phone || '');
+    const r = await query('SELECT * FROM users WHERE phone = $1 LIMIT 1', [cleanPhone]);
+    if (r.rows[0]) {
+      await createPasswordReset(r.rows[0].id);
+      await recordAuthAudit(r.rows[0].id, cleanPhone, 'reset_request', true, req.ip);
+    }
+    rateLimitClear(req);
+    res.json({ ok: true, message: 'If an account exists for this number, a reset was created.' });
+  } catch {
+    res.json({ ok: true });
+  }
+});
+
+app.post('/auth/password-reset/confirm', rateLimit, async (req, res) => {
+  try {
+    const { phone, token, newPassword } = req.body || {};
+    const full = await consumePasswordReset(phone, token, newPassword);
+    await recordAuthAudit(full.id, full.phone, 'reset_confirm', true, req.ip);
+    rateLimitClear(req);
+    const accessToken = signAccessToken(full);
+    const { token: refreshToken } = await issueRefreshToken(full.id, req.ip);
+    res.json({ accessToken, refreshToken, user: publicUser(full) });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Reset failed.' });
+  }
+});
+
+// Manager/owner resetting staff/manager passwords: server generates a
+// compliant temp password, sets it, revokes sessions, returns it ONCE
+// for forwarding over WhatsApp. The clear value is never logged.
+app.post('/auth/admin-reset', authRequired, requireRole('manager', 'owner'), async (req, res) => {
+  try {
+    const me = await loadUserById(req.auth.sub);
+    const { userId } = req.body || {};
+    const r = await query('SELECT * FROM users WHERE id = $1 LIMIT 1', [String(userId || '')]);
+    const target = r.rows[0];
+    if (!target || target.business_id !== me.business_id) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    if (target.role === 'owner' && me.role !== 'owner') {
+      return res.status(403).json({ error: 'Only an owner can reset another owner.' });
+    }
+    const temp = generateTempPassword();
+    await query('UPDATE users SET password_hash = $2, password_changed_at = now(), failed_attempts = 0, locked_until = NULL WHERE id = $1', [
+      target.id, await hashPassword(temp),
+    ]);
+    await revokeAllSessions(target.id);
+    await writeAudit(me, 'update', 'users', target.id, { password: '***' }, { password: '***reset***' });
+    await recordAuthAudit(me.id, me.phone, 'admin_reset:' + target.id, true, req.ip);
+    res.json({ tempPassword: temp, user: publicUser(await loadUserById(target.id)) });
+  } catch (e) {
+    res.status(500).json({ error: 'Reset failed.' });
   }
 });
 
@@ -118,21 +310,31 @@ app.get('/auth/me', authRequired, async (req, res) => {
   res.json({ user: publicUser(user) });
 });
 
-// Manager/owner creates staff (replaces provision_staff_user RPC).
+// Manager/owner provisions staff/manager (password REQUIRED + POS token).
+// The till no longer has a passwordless path: every account leaves here
+// with a bcrypt password and a single-use activation token. The clear
+// password is supplied by the caller (dashboard generates it) and is
+// returned NEVER — the caller already holds it for WhatsApp forwarding.
 app.post('/auth/staff', authRequired, requireRole('manager', 'owner'), async (req, res) => {
   try {
     const me = await loadUserById(req.auth.sub);
     const { name, phone, password, branch_id, role } = req.body || {};
     const cleanPhone = normalizePhone(phone || '');
     if (!String(name || '').trim()) return res.status(400).json({ error: 'Name required.' });
-    if (!cleanPhone) return res.status(400).json({ error: 'Phone required.' });
-    const r = await query('INSERT INTO users (business_id, branch_id, role, name, phone, password_hash, pos_activation_token) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *', [
+    if (!cleanPhone || cleanPhone.length < 9) return res.status(400).json({ error: 'Valid phone required.' });
+    const pwErr = validatePassword(password);
+    if (pwErr) return res.status(400).json({ error: pwErr });
+    if (!branch_id && !me.branch_id) return res.status(400).json({ error: 'Branch required.' });
+    const existing = await query('SELECT id FROM users WHERE phone = $1 LIMIT 1', [cleanPhone]);
+    if (existing.rows.length > 0) return res.status(409).json({ error: 'This phone number already has an account.' });
+    const r = await query('INSERT INTO users (business_id, branch_id, role, name, phone, password_hash, password_changed_at, pos_activation_token) VALUES ($1,$2,$3,$4,$5,$6,now(),$7) RETURNING *', [
       me.business_id, branch_id || me.branch_id, role === 'manager' ? 'manager' : 'staff',
       String(name).trim(), cleanPhone,
-      password ? await hashPassword(String(password)) : null,
+      await hashPassword(String(password)),
       crypto.randomUUID(),
     ]);
     await writeAudit(me, 'insert', 'users', r.rows[0].id, null, publicUser(r.rows[0]));
+    await recordAuthAudit(me.id, me.phone, 'provision:' + r.rows[0].id, true, req.ip);
     res.json({ user: publicUser(r.rows[0]) });
   } catch (e) {
     console.error('create staff failed:', e.message);
@@ -209,6 +411,12 @@ app.get('/api/:table', authRequired, async (req, res) => {
     const { table } = req.params;
     assertTable(table);
     if (table === 'audit_events' && req.auth.role !== 'owner') return res.status(403).json({ error: 'Owner only' });
+    // User directory holds credentials metadata: only managers/owners may
+    // list it (staff use /auth/me for their own profile). password_hash is
+    // NEVER selected — the API is the only reader of that column.
+    if (table === 'users' && req.auth.role !== 'manager' && req.auth.role !== 'owner') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
     const me = await loadUserById(req.auth.sub);
     if (!me) return res.status(401).json({ error: 'User gone' });
 
@@ -238,7 +446,11 @@ app.get('/api/:table', authRequired, async (req, res) => {
       }
     }
 
-    let sql = `SELECT * FROM "${table}"`;
+    // password_hash never leaves the server, even to managers.
+    const selectList = table === 'users'
+      ? 'id, business_id, branch_id, role, name, phone, pos_activated, pos_activation_token, failed_attempts, locked_until, password_changed_at, last_login_at, created_at'
+      : '*';
+    let sql = `SELECT ${selectList} FROM "${table}"`;
     if (wheres.length) sql += ' WHERE ' + wheres.join(' AND ');
 
     const order = String(req.query.order || '');
@@ -297,12 +509,9 @@ app.post('/api/:table', authRequired, async (req, res) => {
       }
     }
     if (table === 'users') {
-      for (const r of rows) {
-        r.business_id = me.business_id;
-        if (r.password_hash && !String(r.password_hash).startsWith('$2')) {
-          r.password_hash = await hashPassword(String(r.password_hash));
-        }
-      }
+      // No direct inserts: provisioning (password policy, activation token,
+      // audit) lives in POST /auth/staff. The generic gateway would bypass it.
+      return res.status(403).json({ error: 'Use POST /auth/staff to create users.' });
     }
 
     const out = [];
@@ -345,6 +554,22 @@ app.patch('/api/:table', authRequired, async (req, res) => {
     const me = await loadUserById(req.auth.sub);
     const patch = req.body || {};
     delete patch.id;
+    if (table === 'users') {
+      // Role, business, credentials and tokens change only via dedicated
+      // endpoints (/auth/admin-reset, /auth/change-password, provisioning).
+      // Generic edits are limited to directory fields.
+      const allowed = new Set(['name', 'phone', 'branch_id']);
+      for (const k of Object.keys(patch)) {
+        if (!allowed.has(k)) return res.status(403).json({ error: 'Field not editable here: ' + k });
+      }
+      if (patch.phone !== undefined) {
+        const cp = normalizePhone(patch.phone || '');
+        if (!cp || cp.length < 9) return res.status(400).json({ error: 'Valid phone required.' });
+        patch.phone = cp;
+        const dupe = await query('SELECT id FROM users WHERE phone = $1 AND id <> $2 LIMIT 1', [cp, req.query['eq.id'] || '']);
+        if (dupe.rows.length > 0) return res.status(409).json({ error: 'Phone already in use.' });
+      }
+    }
     const cols = Object.keys(patch);
     if (cols.length === 0) return res.status(400).json({ error: 'Empty patch' });
     if (table === 'products' && patch.image && String(patch.image).length > 700000) {
@@ -414,6 +639,9 @@ app.delete('/api/:table', authRequired, async (req, res) => {
       }
     }
     if (!hasEq) return res.status(400).json({ error: 'Delete requires eq.* filter' });
+    if (table === 'users' && String(req.query['eq.id'] || '') === me.id) {
+      return res.status(400).json({ error: 'You cannot delete your own account.' });
+    }
     const before = await query(`SELECT * FROM "${table}" WHERE ${wheres.join(' AND ')}`, params);
     const r = await query(`DELETE FROM "${table}" WHERE ${wheres.join(' AND ')} RETURNING *`, params);
     for (const row of r.rows) {
@@ -454,28 +682,59 @@ app.post('/api/:table/upsert', authRequired, async (req, res) => {
   }
 });
 
-// ── RPC compat (old Supabase function names) ─────────────────
-app.post('/rpc/:fn', authRequired, async (req, res) => {
+// ── Platform: Market analytics (cross-business, admin-gated) ──
+// The Market dashboard (apps/market) shows platform-wide aggregates.
+// Normal /api/* reads are business-scoped, so these dedicated endpoints
+// authenticate with the MARKET_ADMIN_PASS and issue a short-lived
+// platform token instead of a user session.
+const MARKET_ADMIN_PASS = process.env.MARKET_ADMIN_PASS || null;
+
+app.post('/platform/login', rateLimit, async (req, res) => {
   try {
-    const { fn } = req.params;
-    const me = await loadUserById(req.auth.sub);
-    if (fn === 'auto_confirm_user') return res.json({ data: true });
-    if (fn === 'signup_create_owner') {
-      return res.json({ data: { business_id: me.business_id, user_id: me.id } });
+    const { password } = req.body || {};
+    if (!MARKET_ADMIN_PASS) {
+      console.error('[api] MARKET_ADMIN_PASS is not set — market dashboard disabled.');
+      return res.status(503).json({ error: 'Market analytics is not configured.' });
     }
-    if (fn === 'provision_staff_user') {
-      const { p_name, p_phone, p_branch_id, p_role } = req.body || {};
-      const cleanPhone = normalizePhone(p_phone || '');
-      const r = await query(
-        'INSERT INTO users (business_id, branch_id, role, name, phone, pos_activation_token) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-        [me.business_id, p_branch_id || me.branch_id, p_role === 'manager' ? 'manager' : 'staff', p_name || 'Staff', cleanPhone || null, crypto.randomUUID()],
-      );
-      await writeAudit(me, 'insert', 'users', r.rows[0].id, null, publicUser(r.rows[0]));
-      return res.json({ data: publicUser(r.rows[0]) });
+    if (!password || String(password) !== MARKET_ADMIN_PASS) {
+      return res.status(401).json({ error: 'Invalid password. Access denied.' });
     }
-    return res.status(400).json({ error: 'Unknown RPC: ' + fn });
+    rateLimitClear(req);
+    res.json({ token: signPlatformToken() });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error('platform login failed:', e.message);
+    res.status(500).json({ error: 'Login failed.' });
+  }
+});
+
+// One call returns the five tables the Market dashboard aggregates
+// client-side (same shape as its old bulk fetch): businesses, branches,
+// products, sales, users. Password hashes are stripped from users.
+app.get('/platform/export', authRequired, requireRole('platform'), async (_req, res) => {
+  try {
+    const [biz, br, prod, sales, users] = await Promise.all([
+      query('SELECT id, name, business_type, owner_user_id, created_at FROM businesses ORDER BY created_at DESC LIMIT 20000'),
+      query('SELECT id, business_id, name, created_at FROM branches ORDER BY created_at DESC LIMIT 20000'),
+      query(`SELECT id, business_id, name, bulk_unit_name, retail_unit_name,
+             units_per_bulk, bulk_cost_price, bulk_sell_price, retail_sell_price, created_at
+             FROM products ORDER BY created_at DESC LIMIT 20000`),
+      query(`SELECT id, branch_id, product_id, sold_by, unit_type, quantity, unit_price,
+             total_price, sold_at, client_reported_at
+             FROM sales ORDER BY sold_at DESC LIMIT 50000`),
+      query('SELECT id, business_id, branch_id, role, name, phone, created_at FROM users ORDER BY created_at DESC LIMIT 20000'),
+    ]);
+    res.json({
+      data: {
+        businesses: biz.rows,
+        branches: br.rows,
+        products: prod.rows,
+        sales: sales.rows,
+        users: users.rows,
+      },
+    });
+  } catch (e) {
+    console.error('platform export failed:', e.message);
+    res.status(500).json({ error: 'Export failed.' });
   }
 });
 

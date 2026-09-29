@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, isApiMode, apiBaseUrl } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import type { Branch } from '@branchport/shared';
 
 interface AssignedManager {
@@ -45,8 +45,8 @@ export default function Managers() {
     if (!profile?.business_id) return;
 
     const [branchesRes, managersRes] = await Promise.allSettled([
-      supabase.from('branches').select('*').eq('business_id', profile.business_id),
-      supabase.from('users').select('*').eq('business_id', profile.business_id).eq('role', 'manager'),
+      api.from('branches').select('*').eq('business_id', profile.business_id),
+      api.from('users').select('*').eq('business_id', profile.business_id).eq('role', 'manager'),
     ]);
 
     if (branchesRes.status === 'fulfilled' && branchesRes.value.data) {
@@ -94,57 +94,20 @@ export default function Managers() {
       const password = genPassword();
       const cleanPhone = newPhone.replace(/\s+/g, '').replace(/[^+\d]/g, '');
 
-      if (isApiMode) {
-        const token = (() => { try { return localStorage.getItem('bp-session-token'); } catch { return null; } })();
-        const res = await fetch(`${apiBaseUrl}/auth/staff`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: JSON.stringify({ name: newName.trim(), phone: cleanPhone, password, branch_id: newBranch || null, role: 'manager' }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setNewLoading(false);
-          setNewError(body.error || 'Could not create manager.');
-          return;
-        }
-      } else {
-        const email = `${cleanPhone}@branchport.app`;
+      // One call creates the manager row with a bcrypt password (the API
+      // takes the business from the caller's JWT).
+      const res = await api.auth.createStaff({
+        name: newName.trim(),
+        phone: cleanPhone,
+        password,
+        branch_id: newBranch || undefined,
+        role: 'manager',
+      });
 
-        // Create auth user
-        const { data: authData, error: authErr } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { name: newName.trim(), phone: cleanPhone },
-            emailRedirectTo: window.location.origin,
-          },
-        });
-
-        if (authErr) {
-          setNewLoading(false);
-          setNewError(authErr.message.includes('already') ? 'This phone is already registered.' : authErr.message);
-          return;
-        }
-
-        if (!authData.user) {
-          setNewLoading(false);
-          setNewError('Failed to create account.');
-          return;
-        }
-
-        // Create user record
-        const { error: userErr } = await supabase.from('users').insert({
-          id: authData.user.id,
-          business_id: profile.business_id,
-          branch_id: newBranch || null,
-          role: 'manager',
-          name: newName.trim(),
-          phone: cleanPhone,
-        });
-
-        if (userErr) {
-          console.error('Failed to create manager user record:', userErr.message);
-        }
+      if (!res.ok) {
+        setNewLoading(false);
+        setNewError(res.error || 'Could not create manager.');
+        return;
       }
 
       setNewLoading(false);
@@ -177,7 +140,7 @@ export default function Managers() {
       const cleanPhone = existingPhone.replace(/\s+/g, '').replace(/[^+\d]/g, '');
 
       // Find user by phone
-      const { data: userData, error: userErr } = await supabase
+      const { data: userData, error: userErr } = await api
         .from('users')
         .select('*')
         .eq('phone', cleanPhone)
@@ -191,7 +154,7 @@ export default function Managers() {
       }
 
       // Update role to manager
-      const { error: updateErr } = await supabase
+      const { error: updateErr } = await api
         .from('users')
         .update({ role: 'manager', branch_id: existingBranch || userData.branch_id })
         .eq('id', userData.id);
@@ -225,7 +188,7 @@ export default function Managers() {
     setSelfAssignLoading(true);
 
     try {
-      const { error } = await supabase
+      const { error } = await api
         .from('users')
         .update({ role: 'manager' })
         .eq('id', profile.id);
@@ -248,7 +211,7 @@ export default function Managers() {
 
   async function handleRemove(managerId: string) {
     try {
-      await supabase
+      await api
         .from('users')
         .update({ role: 'staff' })
         .eq('id', managerId);

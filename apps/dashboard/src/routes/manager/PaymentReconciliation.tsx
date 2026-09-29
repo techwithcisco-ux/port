@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatGHS } from '../../lib/utils';
 import type { Debtor, DebtorPayment, Creditor, CreditorPayment } from '@branchport/shared';
@@ -37,10 +37,10 @@ export default function PaymentReconciliation() {
     setLoading(true);
     try {
       const [d, dp, c, cp] = await Promise.allSettled([
-        supabase.from('debtors').select('*'),
-        supabase.from('debtor_payments').select('*'),
-        supabase.from('creditors').select('*'),
-        supabase.from('creditor_payments').select('*'),
+        api.from('debtors').select('*'),
+        api.from('debtor_payments').select('*'),
+        api.from('creditors').select('*'),
+        api.from('creditor_payments').select('*'),
       ]);
       setDebtors((d.status === 'fulfilled' ? d.value.data : null as any) ?? []);
       setDebtorPayments((dp.status === 'fulfilled' ? dp.value.data : null as any) ?? []);
@@ -162,7 +162,7 @@ export default function PaymentReconciliation() {
     if (side === 'money-in') {
       const debtor = debtors.find((d) => d.id === personId);
       if (!debtor) return;
-      const { error } = await supabase.from('debtor_payments').insert({
+      const { error } = await api.from('debtor_payments').insert({
         debtor_id: personId,
         amount,
         note: `Payment from ${debtor.customer_name}`,
@@ -171,7 +171,7 @@ export default function PaymentReconciliation() {
       if (!error) {
         const newPaid = Number(debtor.amount_paid) + amount;
         const newOwed = Math.max(Number(debtor.original_amount) - newPaid, 0);
-        await supabase.from('debtors').update({
+        await api.from('debtors').update({
           amount_paid: newPaid,
           amount_owed: newOwed,
           status: newOwed <= 0 ? 'settled' : 'partial',
@@ -183,7 +183,7 @@ export default function PaymentReconciliation() {
     } else {
       const creditor = creditors.find((c) => c.id === personId);
       if (!creditor) return;
-      const { error } = await supabase.from('creditor_payments').insert({
+      const { error } = await api.from('creditor_payments').insert({
         creditor_id: personId,
         amount,
         note: `Payment to ${creditor.supplier_name}`,
@@ -192,7 +192,7 @@ export default function PaymentReconciliation() {
       if (!error) {
         const newPaid = Number(creditor.amount_paid) + amount;
         const newOwed = Math.max(Number(creditor.original_amount) - newPaid, 0);
-        await supabase.from('creditors').update({
+        await api.from('creditors').update({
           amount_paid: newPaid,
           amount_owed: newOwed,
           status: newOwed <= 0 ? 'settled' : 'partial',

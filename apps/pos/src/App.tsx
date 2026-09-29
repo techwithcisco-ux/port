@@ -37,7 +37,7 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
   if (!authUserId || !profile) return <Navigate to="/login" replace />;
   // The POS is staff-only. A manager/owner account can still authenticate
-  // here (Supabase Auth doesn't know about app roles), but this app has
+  // here (login succeeds before the app role is checked), but this app has
   // no use for them — send them back to login rather than into a screen
   // built around a branch_id they don't have.
   if (profile.role !== 'staff' || !profile.branch_id) {
@@ -46,12 +46,16 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return <SyncBoundary>{children}</SyncBoundary>;
 }
 
+// The POS is served under /pos/ in the combined Vercel build, or at the
+// root of its own site when deployed standalone on Render (VITE_BASE=/) —
+// follow whatever base Vite compiled with instead of hardcoding the path.
+const viteBase = import.meta.env.BASE_URL || '/';
+const routerBasename = viteBase !== '/' ? viteBase.replace(/\/$/, '') : undefined;
+
 export default function App() {
   return (
     <AuthProvider>
-      {/* Production builds live under /pos/ (single Vercel project with
-          the dashboard at /); dev runs at the root of :5174. */}
-      <BrowserRouter basename={import.meta.env.PROD ? '/pos' : '/'}>
+      <BrowserRouter basename={routerBasename}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/activate" element={<Activate />} />

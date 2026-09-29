@@ -1,71 +1,147 @@
-// Render Postgres API client — supabase-js compatible subset.
+// BranchPort REST client — the single backend access layer.
 // The browser cannot speak to Postgres directly, so apps/api (Express + pg)
-// fronts the Render database. This client mirrors the supabase-js surface
-// the frontends already use (from/select/eq/insert/update/delete/upsert,
-// rpc, auth.*) over REST + JWT, so existing screens keep working.
+// fronts the Render database. This client provides:
+//   - `from(table)`: chainable query builder (select/eq/gte/lte/order/limit/
+//     insert/update/delete/upsert) executing over REST with JWT auth
+//   - `auth`: phone + password authentication against the /auth/* endpoints
+// Every await resolves to the `{ data, error }` convention the screens use,
+// so call sites read like synchronous DB access with explicit failures.
 
-export interface ApiQueryResult<T = unknown> {
+// `data` stays `any` on purpose: the dashboard/POS/market screens all use
+// the loose destructured `{ data, error }` style the old client allowed.
+// Narrowing here would break every call site for no runtime gain — the
+// API's row shapes are documented in apps/api/schema.sql.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface ApiQueryResult<T = any> {
   data: T | null;
   error: { message: string; code?: string } | null;
 }
 
-type Filter = { col: string; op: 'eq' | 'gte' | 'lte'; val: string };
-
-function phoneFromEmail(email: string): string {
-  const local = String(email || '').split('@')[0] || '';
-  return local.replace(/\s+/g, '').replace(/[^+\d]/g, '');
+export interface ApiUser {
+  id: string;
+  business_id: string | null;
+  branch_id: string | null;
+  role: 'owner' | 'manager' | 'staff';
+  name: string;
+  phone: string;
+  pos_activated?: boolean;
+  [key: string]: unknown;
 }
+
+export type AuthResult<T = ApiUser> =
+  | { ok: true; token: string; accessToken: string; refreshToken: string; user: T }
+  | { ok: false; error: string; passwordRequired?: boolean };
+
+export type MeResult<T = ApiUser> =
+  | { ok: true; user: T }
+  | { ok: false; error: string };
+
+type Filter = { col: string; op: 'eq' | 'gte' | 'lte'; val: string };
 
 export function createApiClient(opts: {
   baseUrl: string;
   tokenKey?: string;
+  refreshKey?: string;
   userKey?: string;
 }) {
   let baseUrl = String(opts.baseUrl || '').replace(/\/$/, '');
   // Render's fromService:host injects a bare hostname — upgrade to https.
   if (baseUrl && !/:\/\//.test(baseUrl)) baseUrl = `https://${baseUrl}`;
   const tokenKey = opts.tokenKey || 'bp-api-token';
+  const refreshKey = opts.refreshKey || `${tokenKey}-refresh`;
   const userKey = opts.userKey || 'bp-api-user';
 
-  const listeners = new Set<(event: string, session: unknown) => void>();
-  let pendingSignup: { email: string; password: string; options?: { data?: Record<string, unknown> } } | null = null;
+  type AuthEvent = 'signed-in' | 'signed-out';
+  type Session = { token: string; user: unknown } | null;
+  const listeners = new Set<(event: AuthEvent, session: Session) => void>();
 
-  const getToken = () => {
+  const getToken = (): string | null => {
     try { return localStorage.getItem(tokenKey); } catch { return null; }
   };
-  const setSession = (token: string, user: unknown) => {
-    try {
-      localStorage.setItem(tokenKey, token);
-      localStorage.setItem(userKey, JSON.stringify(user));
-    } catch { /* quota */ }
-    listeners.forEach((cb) => { try { cb('SIGNED_IN', { user, access_token: token }); } catch {} });
+  const getRefreshToken = (): string | null => {
+    try { return localStorage.getItem(refreshKey); } catch { return null; }
   };
-  const clearSession = () => {
-    try { localStorage.removeItem(tokenKey); localStorage.removeItem(userKey); } catch {}
-    listeners.forEach((cb) => { try { cb('SIGNED_OUT', null); } catch {} });
-  };
-  const readUser = <T = unknown>(): T | null => {
+  const readUser = <T = ApiUser>(): T | null => {
     try {
       const raw = localStorage.getItem(userKey);
       return raw ? (JSON.parse(raw) as T) : null;
     } catch { return null; }
   };
+  const setSession = (accessToken: string, refreshToken: string, user: unknown) => {
+    try {
+      localStorage.setItem(tokenKey, accessToken);
+      localStorage.setItem(refreshKey, refreshToken);
+      localStorage.setItem(userKey, JSON.stringify(user));
+    } catch { /* quota */ }
+    listeners.forEach((cb) => { try { cb('signed-in', { token: accessToken, user }); } catch {} });
+  };
+  const clearSession = () => {
+    try { localStorage.removeItem(tokenKey); localStorage.removeItem(refreshKey); localStorage.removeItem(userKey); } catch {}
+    listeners.forEach((cb) => { try { cb('signed-out', null); } catch {} });
+  };
 
-  async function authed(path: string, init?: RequestInit): Promise<Response> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init?.headers as Record<string, string> || {}) };
+  // Single-flight refresh: concurrent 401s share one rotation call.
+  let refreshPromise: Promise<boolean> | null = null;
+  async function refreshNow(): Promise<boolean> {
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = (async () => {
+      const rt = getRefreshToken();
+      if (!rt) return false;
+      try {
+        const res = await fetch(`${baseUrl}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: rt }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.status !== 200 || !body.accessToken) {
+          clearSession();
+          return false;
+        }
+        setSession(body.accessToken, body.refreshToken, body.user ?? readUser());
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+    return refreshPromise;
+  }
+
+  const AUTH_PATHS = new Set(['/auth/login', '/auth/pos-login', '/auth/refresh', '/auth/signup-owner']);
+
+  async function request(
+    path: string,
+    init?: RequestInit,
+    retry = true,
+  ): Promise<{ status: number; body: Record<string, unknown> }> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...((init?.headers as Record<string, string>) || {}),
+    };
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    return fetch(`${baseUrl}${path}`, { ...init, headers });
+    const res = await fetch(`${baseUrl}${path}`, { ...init, headers });
+    const body = await res.json().catch(() => ({} as Record<string, unknown>));
+    // Access tokens live 15 minutes: on expiry, rotate once and retry.
+    // Refresh reuse (theft) or expiry clears the session -> signed-out.
+    if (res.status === 401 && retry && !AUTH_PATHS.has(path) && getRefreshToken()) {
+      const ok = await refreshNow();
+      if (ok) return request(path, init, false);
+    }
+    return { status: res.status, body };
   }
 
-  function toError(status: number, body: { error?: string }): { message: string; code?: string } {
-    return { message: body?.error || `Request failed (${status})` };
+  function toError(status: number, body: Record<string, unknown>): { message: string; code?: string } {
+    return { message: (body?.error as string) || `Request failed (${status})` };
   }
+  const networkError = (): { message: string } =>
+    ({ message: 'Could not reach the server. Check your connection.' });
 
-  // Mirrors supabase-js chaining: every method returns `this` and the
-  // query only executes on await/.then — so .update(patch).eq(...),
-  // .delete().eq(...), .insert(rows).select() and .select().eq().order()
-  // all work exactly like the Supabase path.
+  // Chaining query builder: every method returns `this` and the query only
+  // executes on await/.then — so .update(patch).eq(...), .delete().eq(...),
+  // .insert(rows).select() and .select().eq().order() all read fluently.
   type PendingOp =
     | { kind: 'select' }
     | { kind: 'insert'; rows: unknown }
@@ -110,9 +186,8 @@ export function createApiClient(opts: {
         for (const f of this.filters) sp.append(`${f.op}.${f.col}`, f.val);
         if (this.orderBy) sp.set('order', this.orderBy);
         if (this.limitN != null) sp.set('limit', String(this.limitN));
-        const res = await authed(`/api/${this.table}?${sp.toString()}`);
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) return { data: null, error: toError(res.status, body) };
+        const { status, body } = await request(`/api/${this.table}?${sp.toString()}`);
+        if (status !== 200) return { data: null, error: toError(status, body) };
         const data = (body.data ?? []) as unknown;
         if (this.wantSingle) {
           const arr = data as unknown[];
@@ -120,31 +195,30 @@ export function createApiClient(opts: {
           return { data: arr[0] as unknown, error: null };
         }
         return { data, error: null };
-      } catch (e) {
-        return { data: null, error: { message: (e as Error).message } };
+      } catch {
+        return { data: null, error: networkError() };
       }
     }
 
     async execWrite(): Promise<ApiQueryResult> {
       try {
         const op = this.op;
-        let res: Response;
+        let res: { status: number; body: Record<string, unknown> };
         if (op.kind === 'insert') {
-          res = await authed(`/api/${this.table}`, { method: 'POST', body: JSON.stringify(op.rows) });
+          res = await request(`/api/${this.table}`, { method: 'POST', body: JSON.stringify(op.rows) });
         } else if (op.kind === 'upsert') {
-          res = await authed(`/api/${this.table}/upsert`, { method: 'POST', body: JSON.stringify(op.row) });
+          res = await request(`/api/${this.table}/upsert`, { method: 'POST', body: JSON.stringify(op.row) });
         } else if (op.kind === 'update') {
-          res = await authed(`/api/${this.table}?${this.filterQs()}`, { method: 'PATCH', body: JSON.stringify(op.patch) });
+          res = await request(`/api/${this.table}?${this.filterQs()}`, { method: 'PATCH', body: JSON.stringify(op.patch) });
         } else {
-          res = await authed(`/api/${this.table}?${this.filterQs()}`, { method: 'DELETE' });
+          res = await request(`/api/${this.table}?${this.filterQs()}`, { method: 'DELETE' });
         }
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) return { data: null, error: toError(res.status, body) };
-        const data = (body.data ?? null) as unknown;
+        if (res.status >= 400) return { data: null, error: toError(res.status, res.body) };
+        const data = (res.body.data ?? null) as unknown;
         if (this.wantSingle) return { data: (Array.isArray(data) ? data[0] : data) ?? null, error: null };
         return { data, error: null };
-      } catch (e) {
-        return { data: null, error: { message: (e as Error).message } };
+      } catch {
+        return { data: null, error: networkError() };
       }
     }
 
@@ -161,93 +235,227 @@ export function createApiClient(opts: {
     }
   }
 
-  async function rpc(fn: string, args?: Record<string, unknown>): Promise<ApiQueryResult> {
-    // Signup flow: dashboard calls auth.signUp (buffers creds) then
-    // rpc('signup_create_owner', {p_name, p_phone, p_business_name}).
-    // Complete the real owner creation here where we have all fields.
-    if (fn === 'signup_create_owner' && pendingSignup) {
-      try {
-        const res = await fetch(`${baseUrl}/auth/signup-owner`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: (args?.p_name as string) ?? '',
-            phone: (args?.p_phone as string) ?? '',
-            businessName: (args?.p_business_name as string) ?? '',
-            password: pendingSignup.password,
-          }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) return { data: null, error: toError(res.status, body) };
-        setSession(body.token, body.user);
-        pendingSignup = null;
-        return { data: body.user ?? null, error: null };
-      } catch (e) {
-        return { data: null, error: { message: (e as Error).message } };
-      }
-    }
-    if (fn === 'auto_confirm_user') return { data: true as unknown, error: null };
-    try {
-      const res = await authed(`/rpc/${fn}`, { method: 'POST', body: JSON.stringify(args || {}) });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) return { data: null, error: toError(res.status, body) };
-      return { data: (body.data ?? null) as unknown, error: null };
-    } catch (e) {
-      return { data: null, error: { message: (e as Error).message } };
-    }
-  }
+  const pair = (body: Record<string, unknown>) => ({
+    accessToken: body.accessToken as string,
+    refreshToken: body.refreshToken as string,
+    // `token` stays as the access-token alias so existing callers keep working.
+    token: body.accessToken as string,
+    user: body.user as ApiUser,
+  });
 
   const auth = {
-    async signUp(params: { email: string; password: string; options?: { data?: Record<string, unknown> } }) {
-      pendingSignup = { email: params.email, password: params.password, options: params.options };
-      // Return a pending user; the follow-up signup_create_owner RPC
-      // completes creation and establishes the session.
-      return { data: { user: { id: 'pending', email: params.email } }, error: null };
-    },
-    async signInWithPassword(params: { email: string; password: string }) {
+    /** Sign in any role with phone + password (access + refresh pair). */
+    async login(phone: string, password: string): Promise<AuthResult> {
       try {
-        const phone = phoneFromEmail(params.email);
-        const res = await fetch(`${baseUrl}/auth/login`, {
+        const { status, body } = await request('/auth/login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone, password: params.password }),
+          body: JSON.stringify({ phone, password }),
         });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          const msg = body?.error || 'Login failed';
-          return { data: null, error: { message: /wrong|invalid/i.test(msg) ? 'Invalid login credentials' : msg } };
-        }
-        setSession(body.token, body.user);
-        return { data: { user: body.user, session: { access_token: body.token, user: body.user } }, error: null };
-      } catch (e) {
-        return { data: null, error: { message: (e as Error).message } };
+        if (status !== 200) return { ok: false, error: toError(status, body).message };
+        const p = pair(body);
+        setSession(p.accessToken, p.refreshToken, p.user);
+        return { ok: true, ...p };
+      } catch {
+        return { ok: false, error: networkError().message };
       }
     },
-    async signOut() {
+
+    /** Create a business + owner account in one call (dashboard signup). */
+    async signupOwner(params: {
+      name: string;
+      phone: string;
+      businessName: string;
+      businessType?: string;
+      password: string;
+    }): Promise<AuthResult> {
+      try {
+        const { status, body } = await request('/auth/signup-owner', {
+          method: 'POST',
+          body: JSON.stringify(params),
+        });
+        if (status !== 200) return { ok: false, error: toError(status, body).message };
+        const p = pair(body);
+        setSession(p.accessToken, p.refreshToken, p.user);
+        return { ok: true, ...p };
+      } catch {
+        return { ok: false, error: networkError().message };
+      }
+    },
+
+    /** POS login: phone + password always required (no passwordless path). */
+    async posLogin(phone: string, password?: string): Promise<AuthResult> {
+      try {
+        const { status, body } = await request('/auth/pos-login', {
+          method: 'POST',
+          body: JSON.stringify({ phone, password }),
+        });
+        if (status !== 200) {
+          return {
+            ok: false,
+            error: toError(status, body).message,
+            ...(body.passwordRequired ? { passwordRequired: true } : {}),
+          };
+        }
+        const p = pair(body);
+        setSession(p.accessToken, p.refreshToken, p.user);
+        return { ok: true, ...p };
+      } catch {
+        return { ok: false, error: networkError().message };
+      }
+    },
+
+    /** Burn a single-use POS activation link token and open a session. */
+    async posActivate(token: string): Promise<AuthResult> {
+      try {
+        const { status, body } = await request('/auth/pos-activate', {
+          method: 'POST',
+          body: JSON.stringify({ token }),
+        });
+        if (status !== 200) return { ok: false, error: toError(status, body).message };
+        const p = pair(body);
+        setSession(p.accessToken, p.refreshToken, p.user);
+        return { ok: true, ...p };
+      } catch {
+        return { ok: false, error: networkError().message };
+      }
+    },
+
+    /** Validate the stored access token; auto-rotates once on expiry. */
+    async me(): Promise<MeResult> {
+      try {
+        const { status, body } = await request('/auth/me');
+        if (status !== 200) return { ok: false, error: toError(status, body).message };
+        return { ok: true, user: body.user as ApiUser };
+      } catch {
+        return { ok: false, error: networkError().message };
+      }
+    },
+
+    /** Force a refresh rotation now (used after foregrounding the app). */
+    async refreshSession(): Promise<boolean> {
+      return refreshNow();
+    },
+
+    /** Manager/owner provisions a staff or manager account (password required). */
+    async createStaff(params: {
+      name: string;
+      phone: string;
+      password: string;
+      branch_id?: string;
+      role?: 'staff' | 'manager';
+    }): Promise<MeResult> {
+      try {
+        const { status, body } = await request('/auth/staff', {
+          method: 'POST',
+          body: JSON.stringify(params),
+        });
+        if (status !== 200 && status !== 201) return { ok: false, error: toError(status, body).message };
+        return { ok: true, user: body.user as ApiUser };
+      } catch {
+        return { ok: false, error: networkError().message };
+      }
+    },
+
+    /** Change own password (revokes all other sessions, returns fresh pair). */
+    async changePassword(currentPassword: string, newPassword: string): Promise<AuthResult> {
+      try {
+        const { status, body } = await request('/auth/change-password', {
+          method: 'POST',
+          body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        if (status !== 200) return { ok: false, error: toError(status, body).message };
+        const p = pair(body);
+        setSession(p.accessToken, p.refreshToken, p.user);
+        return { ok: true, ...p };
+      } catch {
+        return { ok: false, error: networkError().message };
+      }
+    },
+
+    async requestPasswordReset(phone: string): Promise<{ ok: boolean; error?: string }> {
+      try {
+        const { status, body } = await request('/auth/password-reset/request', {
+          method: 'POST',
+          body: JSON.stringify({ phone }),
+        });
+        if (status !== 200) return { ok: false, error: toError(status, body).message };
+        return { ok: true };
+      } catch {
+        return { ok: false, error: networkError().message };
+      }
+    },
+
+    async confirmPasswordReset(phone: string, token: string, newPassword: string): Promise<AuthResult> {
+      try {
+        const { status, body } = await request('/auth/password-reset/confirm', {
+          method: 'POST',
+          body: JSON.stringify({ phone, token, newPassword }),
+        });
+        if (status !== 200) return { ok: false, error: toError(status, body).message };
+        const p = pair(body);
+        setSession(p.accessToken, p.refreshToken, p.user);
+        return { ok: true, ...p };
+      } catch {
+        return { ok: false, error: networkError().message };
+      }
+    },
+
+    /** Manager/owner reset: returns a one-time temp password for forwarding. */
+    async adminResetStaff(userId: string): Promise<{ ok: true; tempPassword: string } | { ok: false; error: string }> {
+      try {
+        const { status, body } = await request('/auth/admin-reset', {
+          method: 'POST',
+          body: JSON.stringify({ userId }),
+        });
+        if (status !== 200) return { ok: false, error: toError(status, body).message };
+        return { ok: true, tempPassword: body.tempPassword as string };
+      } catch {
+        return { ok: false, error: networkError().message };
+      }
+    },
+
+    /** Revoke current refresh token server-side, then drop local session. */
+    async logout(): Promise<void> {
+      try {
+        const rt = getRefreshToken();
+        if (rt) {
+          await fetch(`${baseUrl}/auth/logout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: rt }),
+          }).catch(() => null);
+        }
+      } finally {
+        clearSession();
+      }
+    },
+
+    /** Revoke ALL sessions for this user (e.g. lost device). */
+    async logoutAll(): Promise<void> {
+      try { await request('/auth/logout-all', { method: 'POST' }); } catch { /* best effort */ }
       clearSession();
-      pendingSignup = null;
-      return { error: null };
     },
-    async getSession() {
-      const token = getToken();
-      const user = readUser();
-      if (!token) return { data: { session: null } };
-      return { data: { session: { access_token: token, user } } };
-    },
-    async getUser() {
-      const user = readUser();
-      return { data: { user } };
-    },
-    onAuthStateChange(cb: (event: string, session: unknown) => void) {
+
+    /** Stored access JWT, or null when signed out. */
+    getToken,
+
+    /** Stored refresh token (opaque, long-lived). */
+    getRefreshToken,
+
+    /** Last-known user object from storage (may be stale — prefer `me()`). */
+    getUser: readUser,
+
+    /** Subscribe to sign-in/sign-out events. Returns an unsubscribe fn. */
+    onChange(cb: (event: AuthEvent, session: Session) => void): () => void {
       listeners.add(cb);
-      return { data: { subscription: { unsubscribe: () => { listeners.delete(cb); } } } };
+      return () => { listeners.delete(cb); };
     },
   };
 
   return {
     from: (table: string) => new TableQuery(table),
-    rpc,
     auth,
+    baseUrl,
     isApiMode: true as const,
   };
 }

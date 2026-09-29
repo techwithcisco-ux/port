@@ -13,7 +13,7 @@ export default function Login() {
 
   // Auto-fill from URL params (staff invite link). The password lives only
   // in this form's state — it is never written to storage. Sessions persist
-  // via Supabase Auth, so there is no "remember me" toggle to maintain.
+  // via the API's JWT, so there is no "remember me" toggle to maintain.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlPhone = params.get('phone');

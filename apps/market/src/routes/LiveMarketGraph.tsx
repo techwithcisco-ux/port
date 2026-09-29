@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { getMarketTicker, type MarketTicker } from '../lib/api';
+import LoadError from '../components/LoadError';
 
 function ghs(n: number): string {
   return `GHS ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -38,19 +39,27 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 export default function LiveMarketGraph() {
   const [ticker, setTicker] = useState<MarketTicker[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  useEffect(() => {
-    async function load() {
+  const load = useCallback(async () => {
+    try {
       const data = await getMarketTicker();
       setTicker(data);
       setLastUpdate(new Date());
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load live market data.');
+    } finally {
       setLoading(false);
     }
-    void load();
-    const interval = setInterval(load, 15000); // Refresh every 15 seconds
-    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    void load();
+    const interval = setInterval(() => void load(), 15000); // Refresh every 15 seconds
+    return () => clearInterval(interval);
+  }, [load]);
 
   if (loading) {
     return (
@@ -61,6 +70,10 @@ export default function LiveMarketGraph() {
         </div>
       </div>
     );
+  }
+
+  if (error) {
+    return <LoadError message={error} onRetry={() => void load()} />;
   }
 
   const sorted = [...ticker].sort((a, b) => Math.abs(b.change_24h) - Math.abs(a.change_24h));

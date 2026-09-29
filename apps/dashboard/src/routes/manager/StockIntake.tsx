@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent, useMemo } from 'react';
 import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
-import { supabase } from '../../lib/supabase';
+import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Product, Supplier, ProductVariant, InventoryIntake } from '@branchport/shared';
 import { fileToBase64Limited, isMissingImageColumnError } from '@branchport/shared';
@@ -127,10 +127,10 @@ export default function StockIntake() {
 
   async function refresh() {
     const [s, p, v, i] = await Promise.all([
-      supabase.from('suppliers').select('*').order('name'),
-      supabase.from('products').select('*').order('created_at', { ascending: false }),
-      supabase.from('product_variants').select('*'),
-      supabase.from('inventory_intake').select('*').order('created_at', { ascending: false }),
+      api.from('suppliers').select('*').order('name'),
+      api.from('products').select('*').order('created_at', { ascending: false }),
+      api.from('product_variants').select('*'),
+      api.from('inventory_intake').select('*').order('created_at', { ascending: false }),
     ]);
     setSuppliers((s.data as Supplier[]) ?? []);
     setProducts((p.data as Product[]) ?? []);
@@ -151,12 +151,12 @@ export default function StockIntake() {
     const name = newSupplierName.trim();
     if (!name) return setError('Enter a distributor name.');
 
-    const { error: insertErr } = await supabase
+    const { error: insertErr } = await api
       .from('suppliers').insert({ name, business_id: profile.business_id });
     if (insertErr) return setError(`Error: ${insertErr.message}`);
 
     await refresh();
-    const { data: found } = await supabase
+    const { data: found } = await api
       .from('suppliers').select('id')
       .eq('name', name).eq('business_id', profile.business_id).single();
 
@@ -171,7 +171,7 @@ export default function StockIntake() {
     const name = editSupplierName.trim();
     if (!name) return;
     setSupplierBusy(true);
-    const { error } = await supabase.from('suppliers').update({ name }).eq('id', id);
+    const { error } = await api.from('suppliers').update({ name }).eq('id', id);
     setSupplierBusy(false);
     if (error) setError(`Error: ${error.message}`);
     else { setStatus(`Distributor renamed to "${name}".`); setEditingSupplier(null); await refresh(); }
@@ -179,7 +179,7 @@ export default function StockIntake() {
 
   async function handleDeleteSupplier(id: string) {
     setSupplierBusy(true);
-    const { error } = await supabase.from('suppliers').delete().eq('id', id);
+    const { error } = await api.from('suppliers').delete().eq('id', id);
     setSupplierBusy(false);
     if (error) setError(`Error: ${error.message}`);
     else {
@@ -289,16 +289,16 @@ export default function StockIntake() {
       let prod: { id: string } | null = null;
       let prodErr: { message: string } | null = null;
       {
-        const res = await supabase.from('products').insert(productPayload).select('id').single();
+        const res = await api.from('products').insert(productPayload).select('id').single();
         prod = (Array.isArray(res.data) ? res.data[0] : res.data) as { id: string } | null;
         prodErr = res.error;
       }
 
-      // The photo column only exists after migration 0021 — if this database
-      // predates it, save the product WITHOUT the photo instead of failing.
+      // Defensive: if the database somehow lacks the products.image
+      // column, save the product WITHOUT the photo instead of failing.
       if (prodErr && draft.image && isMissingImageColumnError(prodErr.message)) {
         delete productPayload.image;
-        const retry = await supabase.from('products').insert(productPayload).select('id').single();
+        const retry = await api.from('products').insert(productPayload).select('id').single();
         prod = (Array.isArray(retry.data) ? retry.data[0] : retry.data) as { id: string } | null;
         prodErr = retry.error;
         if (!prodErr) photoWarning = true;
@@ -320,7 +320,7 @@ export default function StockIntake() {
         base_units: 1,
         sort_order: i,
       }));
-      const { error: varErr } = await supabase.from('product_variants').insert(variantRows);
+      const { error: varErr } = await api.from('product_variants').insert(variantRows);
       if (varErr) failures.push(`"${productName}" variants error: ${varErr.message}`);
 
       // 3. Insert intake records (one per variant)
@@ -330,7 +330,7 @@ export default function StockIntake() {
         const proportion = totalAllCosts > 0 ? totalCost / totalAllCosts : 1 / validVariants.length;
         const variantPaid = Math.round(totalPaid * proportion * 100) / 100;
 
-        const { error: intakeErr } = await supabase.from('inventory_intake').insert({
+        const { error: intakeErr } = await api.from('inventory_intake').insert({
           business_id: profile.business_id,
           supplier_id: selectedSupplier,
           product_id: prod.id,
@@ -351,7 +351,7 @@ export default function StockIntake() {
     if (saved > 0) {
       setStatus(
         `✅ ${saved} product${saved === 1 ? '' : 's'} saved!`
-        + (photoWarning ? ' (Photos skipped — run migration 0021 products.image to enable them.)' : '')
+        + (photoWarning ? ' (Photos skipped — the database is missing the products.image column.)' : '')
         + (failures.length > 0 ? ` ${failures.length} item${failures.length === 1 ? '' : 's'} need attention above.` : ''),
       );
       setIntakeDrafts([createEmptyIntake()]);
@@ -397,24 +397,24 @@ export default function StockIntake() {
       bulk_cost_price: Number(editCostPrice) || 0,
     };
     if (editProductImage) updatePayload.image = editProductImage;
-    const { error } = await supabase.from('products').update(updatePayload).eq('id', productId);
+    const { error } = await api.from('products').update(updatePayload).eq('id', productId);
     if (error) setError(`Error: ${error.message}`);
     else { setStatus('Product updated.'); setEditingProduct(null); await refresh(); }
   }
 
   async function handleDeleteProduct(productId: string) {
     // 1. Delete variants first
-    const { error: varDelErr } = await supabase.from('product_variants').delete().eq('product_id', productId);
+    const { error: varDelErr } = await api.from('product_variants').delete().eq('product_id', productId);
     if (varDelErr) console.warn('Variant delete:', varDelErr.message);
 
     // 2. Try to null out intake records referencing this product
-    await supabase.from('inventory_intake').update({ product_id: null }).eq('product_id', productId);
+    await api.from('inventory_intake').update({ product_id: null }).eq('product_id', productId);
 
     // 3. Delete the product
-    const { error } = await supabase.from('products').delete().eq('id', productId);
+    const { error } = await api.from('products').delete().eq('id', productId);
     if (error) {
       if (error.message.includes('foreign key') || error.message.includes('violates')) {
-        setError(`Cannot delete: this product has intake records. Run migration 0017 in Supabase SQL Editor to allow deletion.`);
+        setError(`Cannot delete: this product has sales or stock records. Products with recorded sales are kept to preserve history.`);
       } else {
         setError(`Delete failed: ${error.message}`);
       }
@@ -433,7 +433,7 @@ export default function StockIntake() {
   }
 
   async function handleUpdateVariant(variantId: string) {
-    const { error } = await supabase.from('product_variants').update({
+    const { error } = await api.from('product_variants').update({
       name: editVariantName.trim(),
       price: Number(editVariantPrice) || 0,
     }).eq('id', variantId);
@@ -442,9 +442,9 @@ export default function StockIntake() {
   }
 
   async function handleDeleteVariant(variantId: string) {
-    const { error } = await supabase.from('product_variants').delete().eq('id', variantId);
+    const { error } = await api.from('product_variants').delete().eq('id', variantId);
     if (error) {
-      setError(`Delete failed: ${error.message}. You may need to run migration 0016 in Supabase SQL Editor.`);
+      setError(`Delete failed: ${error.message}.`);
       console.error('Variant delete error:', error);
     } else {
       setStatus('Variant deleted.');
@@ -459,7 +459,7 @@ export default function StockIntake() {
   // ═══════════════════════════════════════════════════════════════════
 
   async function handleUpdateIntakeAmountPaid(intakeId: string, newAmountPaid: number) {
-    const { error } = await supabase.from('inventory_intake').update({ amount_paid: newAmountPaid }).eq('id', intakeId);
+    const { error } = await api.from('inventory_intake').update({ amount_paid: newAmountPaid }).eq('id', intakeId);
     if (error) setError(`Error: ${error.message}`);
     else { setStatus('Payment updated.'); await refresh(); }
   }
@@ -913,9 +913,6 @@ export default function StockIntake() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-1">All Items ({products.length})</h2>
             <p className="text-sm text-gray-500 mb-4">Edit product names, unit names, prices, and variants. Delete items you no longer sell.</p>
-            <div className="mb-4 p-3 rounded-xl text-xs" style={{ background: 'rgba(252,209,22,0.08)', border: '1px solid var(--ghana-gold)' }}>
-              <p className="font-medium text-gray-700">⚠️ If edit/delete doesn't work, run migrations 0016 and 0017 in Supabase SQL Editor.</p>
-            </div>
             {products.length === 0 ? (
               <div className="card p-8 text-center">
                 <p className="text-gray-500">No products yet. Add your first in Step ②.</p>

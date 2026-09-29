@@ -362,7 +362,7 @@ export default function Sell() {
   );
 
   return (
-    <div className="flex flex-col lg:flex-row h-[100dvh] min-h-[100dvh] max-h-[100dvh] bg-gray-50 overflow-hidden pb-14 lg:pb-0">
+    <div className="flex flex-col lg:flex-row h-[100dvh] min-h-[100dvh] max-h-[100dvh] bg-gray-50 overflow-hidden">
       {/* ══════════════════════════════════════════════════════════════════════
           LEFT PANEL — Search + Products
           Mobile: collapses to ~60vh. Desktop: fixed 480px sidebar.

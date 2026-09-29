@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-gray-50 text-gray-900 font-sans;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  input, select, textarea, button {
+    font-feature-settings: 'tnum' 1;
+  }
+  /* Prevent iOS auto-zoom on input focus */
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="number"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="date"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+  html {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl border border-gray-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)];
+  }
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1.5;
+  }
+  .input {
+    @apply border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 placeholder:text-gray-400;
+    min-height: 44px;
+  }
+  .btn {
+    @apply rounded-xl px-5 py-2.5 text-sm font-medium transition-all duration-150;
+    min-height: 44px;
+  }
+  .btn-primary {
+    @apply bg-gray-900 text-white hover:bg-gray-800 active:scale-[0.98];
+  }
+}
+
+/* iPhone home-indicator clearance for the sticky cart bar */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

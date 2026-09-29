@@ -10,10 +10,12 @@
     "dev:dashboard": "npm run dev --workspace=apps/dashboard",
     "dev:pos": "npm run dev --workspace=apps/pos",
     "dev:market": "npm run dev --workspace=apps/market",
+    "dev:shop": "npm run dev --workspace=apps/shop",
     "dev:api": "npm run dev --workspace=apps/api",
     "build:dashboard": "npm run build --workspace=apps/dashboard",
     "build:pos": "npm run build --workspace=apps/pos",
     "build:market": "npm run build --workspace=apps/market",
+    "build:shop": "npm run build --workspace=apps/shop",
     "build:shared": "npm run build --workspace=@branchport/shared"
   }
 }

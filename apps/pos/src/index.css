@@ -104,6 +104,11 @@
   }
 }
 
+/* iPhone home-indicator clearance for fixed bottom bars */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* AssistiveTouch floating menu */
 @keyframes assistive-pop {
   from { opacity: 0; transform: scale(0.92) translateY(8px); }

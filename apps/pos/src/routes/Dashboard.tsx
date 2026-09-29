@@ -34,7 +34,7 @@ export default function StaffDashboard() {
 
   if (!profile?.branch_id || !inventory) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 pb-16">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 pb-8">
         <p className="text-gray-500">Loading inventory…</p>
       </div>
     );
@@ -43,7 +43,7 @@ export default function StaffDashboard() {
   const { stats, allInventory } = inventory;
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 pb-16">
+    <div className="flex flex-col min-h-screen bg-gray-50 pb-8">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-10">
         <div>

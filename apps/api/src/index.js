@@ -738,5 +738,263 @@ app.get('/platform/export', authRequired, requireRole('platform'), async (_req, 
   }
 });
 
+// ── Waitlist / shop-link ordering ──────────────────────────────
+// A rep (staff/manager/owner) creates an invite for a customer phone
+// number. The customer opens the PUBLIC shop link (?token), sees live
+// branch availability at retail prices only, picks quantities, submits.
+// Prices/totals are recomputed from the DB — client numbers are ignored.
+// The customer then forwards the order to the retailer over WhatsApp
+// (contact number included in the public payload).
+
+// Lighter limiter for the public shop (browsing customers, not logins).
+const PUB_WINDOW_MS = 15 * 60 * 1000;
+const PUB_MAX = 60;
+const pubAttempts = new Map();
+function publicLimit(req, res, next) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const tries = (pubAttempts.get(ip) || []).filter((t) => now - t < PUB_WINDOW_MS);
+  if (tries.length >= PUB_MAX) return res.status(429).json({ error: 'Too many requests. Try again shortly.' });
+  tries.push(now);
+  pubAttempts.set(ip, tries);
+  next();
+}
+
+// Live branch catalog in retail-equivalent units. Base units == retail
+// units for stock counting (see packages/shared variants.ts).
+async function branchCatalog(branchId) {
+  const prod = await query(
+    `SELECT p.id, p.name, p.retail_unit_name, p.retail_sell_price
+     FROM products p JOIN branches b ON b.business_id = p.business_id
+     WHERE b.id = $1 ORDER BY p.name`,
+    [branchId],
+  );
+  const alloc = await query(
+    `SELECT product_id, SUM(retail_quantity_equivalent)::float AS qty
+     FROM inventory_allocations WHERE branch_id = $1 GROUP BY product_id`,
+    [branchId],
+  );
+  const sold = await query(
+    `SELECT s.product_id,
+       SUM(s.quantity * COALESCE(v.base_units, CASE WHEN s.unit_type = 'bulk' THEN p.units_per_bulk ELSE 1 END))::float AS qty
+     FROM sales s JOIN products p ON p.id = s.product_id
+     LEFT JOIN product_variants v ON v.id = s.variant_id
+     WHERE s.branch_id = $1 GROUP BY s.product_id`,
+    [branchId],
+  );
+  const aMap = new Map(alloc.rows.map((r) => [r.product_id, Number(r.qty) || 0]));
+  const sMap = new Map(sold.rows.map((r) => [r.product_id, Number(r.qty) || 0]));
+  return prod.rows.map((p) => ({
+    product_id: p.id,
+    name: p.name,
+    unit: p.retail_unit_name,
+    unit_price: Number(p.retail_sell_price),
+    available: Math.max(0, Math.round(((aMap.get(p.id) || 0) - (sMap.get(p.id) || 0)) * 100) / 100),
+  }));
+}
+
+async function loadInvite(token) {
+  const r = await query(
+    `SELECT i.*, b.name AS branch_name, b.business_id AS branch_business,
+       biz.name AS business_name, u.name AS creator_name, u.phone AS creator_phone
+     FROM waitlist_invites i
+     JOIN branches b ON b.id = i.branch_id
+     JOIN businesses biz ON biz.id = i.business_id
+     JOIN users u ON u.id = i.created_by
+     WHERE i.token = $1 LIMIT 1`,
+    [String(token || '')],
+  );
+  const inv = r.rows[0];
+  if (!inv) return null;
+  if (inv.status === 'pending' && new Date(inv.expires_at).getTime() < Date.now()) {
+    await query("UPDATE waitlist_invites SET status = 'expired' WHERE id = $1", [inv.id]);
+    inv.status = 'expired';
+  }
+  return inv;
+}
+
+async function resolveBranch(me, branchId) {
+  const wanted = branchId || me.branch_id;
+  if (me.role === 'staff') {
+    if (!me.branch_id) return { error: 'Your account has no branch. Ask your manager.' };
+    if (branchId && branchId !== me.branch_id) return { error: 'Staff can only invite for their own branch.' };
+    return { branchId: me.branch_id };
+  }
+  if (!wanted) return { error: 'Branch required.' };
+  const b = await query('SELECT id FROM branches WHERE id = $1 AND business_id = $2', [wanted, me.business_id]);
+  if (!b.rows[0]) return { error: 'Branch not found.' };
+  return { branchId: wanted };
+}
+
+// Rep creates an invite for a customer phone number.
+app.post('/api/waitlist/invites', authRequired, requireRole('staff', 'manager', 'owner'), async (req, res) => {
+  try {
+    const me = await loadUserById(req.auth.sub);
+    if (!me) return res.status(401).json({ error: 'User gone' });
+    const cleanPhone = normalizePhone(req.body?.customer_phone || '');
+    if (!cleanPhone || cleanPhone.length < 9) return res.status(400).json({ error: 'Valid customer phone required.' });
+    const { branchId, error } = await resolveBranch(me, req.body?.branch_id);
+    if (error) return res.status(400).json({ error });
+    const token = crypto.randomBytes(32).toString('hex');
+    const r = await query(
+      `INSERT INTO waitlist_invites (business_id, branch_id, created_by, customer_phone, token)
+       VALUES ((SELECT business_id FROM branches WHERE id = $1), $1, $2, $3, $4) RETURNING *`,
+      [branchId, me.id, cleanPhone, token],
+    );
+    await writeAudit(me, 'insert', 'waitlist_invites', r.rows[0].id, null, { ...publicUser(r.rows[0]), token: '***' });
+    res.json({ invite: { ...r.rows[0], token } });
+  } catch (e) {
+    console.error('waitlist invite failed:', e.message);
+    res.status(500).json({ error: 'Could not create invite.' });
+  }
+});
+
+// Rep lists invites for their business (staff: own branch only).
+app.get('/api/waitlist/invites', authRequired, requireRole('staff', 'manager', 'owner'), async (req, res) => {
+  try {
+    const me = await loadUserById(req.auth.sub);
+    const params = [me.business_id];
+    let extra = '';
+    if (me.role === 'staff' && me.branch_id) {
+      params.push(me.branch_id);
+      extra = ' AND i.branch_id = $2';
+    }
+    const r = await query(
+      `SELECT i.*, b.name AS branch_name,
+         (SELECT count(*)::int FROM waitlist_orders o WHERE o.invite_id = i.id) AS order_count
+       FROM waitlist_invites i JOIN branches b ON b.id = i.branch_id
+       WHERE i.business_id = $1${extra} ORDER BY i.created_at DESC LIMIT 100`,
+      params,
+    );
+    res.json({ data: r.rows });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not list invites.' });
+  }
+});
+
+app.post('/api/waitlist/invites/revoke', authRequired, requireRole('staff', 'manager', 'owner'), async (req, res) => {
+  try {
+    const me = await loadUserById(req.auth.sub);
+    const r = await query('SELECT * FROM waitlist_invites WHERE id = $1 AND business_id = $2 LIMIT 1', [String(req.body?.id || ''), me.business_id]);
+    const inv = r.rows[0];
+    if (!inv) return res.status(404).json({ error: 'Invite not found.' });
+    if (me.role === 'staff' && inv.branch_id !== me.branch_id) return res.status(403).json({ error: 'Not your branch.' });
+    await query("UPDATE waitlist_invites SET status = 'revoked' WHERE id = $1", [inv.id]);
+    await writeAudit(me, 'update', 'waitlist_invites', inv.id, { status: inv.status }, { status: 'revoked' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not revoke invite.' });
+  }
+});
+
+// Rep lists customer orders (staff: own branch only).
+app.get('/api/waitlist/orders', authRequired, requireRole('staff', 'manager', 'owner'), async (req, res) => {
+  try {
+    const me = await loadUserById(req.auth.sub);
+    const params = [me.business_id];
+    let extra = '';
+    if (me.role === 'staff' && me.branch_id) {
+      params.push(me.branch_id);
+      extra = ' AND o.branch_id = $2';
+    }
+    const r = await query(
+      `SELECT o.*, b.name AS branch_name FROM waitlist_orders o
+       JOIN branches b ON b.id = o.branch_id
+       WHERE o.business_id = $1${extra} ORDER BY o.created_at DESC LIMIT 100`,
+      params,
+    );
+    res.json({ data: r.rows });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not list orders.' });
+  }
+});
+
+app.patch('/api/waitlist/orders', authRequired, requireRole('staff', 'manager', 'owner'), async (req, res) => {
+  try {
+    const me = await loadUserById(req.auth.sub);
+    const { id, status } = req.body || {};
+    if (!['confirmed', 'fulfilled', 'cancelled'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status.' });
+    }
+    const r = await query('SELECT * FROM waitlist_orders WHERE id = $1 AND business_id = $2 LIMIT 1', [String(id || ''), me.business_id]);
+    const order = r.rows[0];
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (me.role === 'staff' && order.branch_id !== me.branch_id) return res.status(403).json({ error: 'Not your branch.' });
+    const u = await query('UPDATE waitlist_orders SET status = $2 WHERE id = $1 RETURNING *', [order.id, status]);
+    await writeAudit(me, 'update', 'waitlist_orders', order.id, { status: order.status }, { status });
+    res.json({ data: u.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not update order.' });
+  }
+});
+
+// PUBLIC: shop catalog for an invite token (retail prices + availability only).
+app.get('/w/:token', publicLimit, async (req, res) => {
+  try {
+    const inv = await loadInvite(req.params.token);
+    if (!inv) return res.status(404).json({ error: 'This shop link is invalid.' });
+    if (inv.status === 'revoked') return res.status(410).json({ error: 'This shop link was revoked. Ask the shop for a new one.' });
+    if (inv.status === 'expired') return res.status(410).json({ error: 'This shop link expired. Ask the shop for a new one.' });
+    res.json({
+      business_name: inv.business_name,
+      branch_name: inv.branch_name,
+      customer_phone: inv.customer_phone,
+      expires_at: inv.expires_at,
+      contact: { name: inv.creator_name, phone: inv.creator_phone },
+      items: await branchCatalog(inv.branch_id),
+    });
+  } catch (e) {
+    console.error('shop catalog failed:', e.message);
+    res.status(500).json({ error: 'Could not load shop.' });
+  }
+});
+
+// PUBLIC: submit a customer order (server recomputes prices + availability).
+app.post('/w/:token/order', publicLimit, async (req, res) => {
+  try {
+    const inv = await loadInvite(req.params.token);
+    if (!inv) return res.status(404).json({ error: 'This shop link is invalid.' });
+    if (inv.status === 'revoked' || inv.status === 'expired') {
+      return res.status(410).json({ error: 'This shop link is no longer active.' });
+    }
+    const lines = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (lines.length === 0 || lines.length > 50) return res.status(400).json({ error: 'Pick at least one item.' });
+    const catalog = await branchCatalog(inv.branch_id);
+    const byId = new Map(catalog.map((c) => [c.product_id, c]));
+    const items = [];
+    let total = 0;
+    for (const l of lines) {
+      const c = byId.get(String(l?.product_id || ''));
+      const qty = Number(l?.qty);
+      if (!c) return res.status(400).json({ error: 'Unknown item in order.' });
+      if (!(qty > 0) || qty > 10000) return res.status(400).json({ error: `Bad quantity for ${c.name}.` });
+      if (qty - c.available > 1e-9) {
+        return res.status(409).json({ error: `Only ${c.available} ${c.unit} of ${c.name} left. Adjust and resend.` });
+      }
+      const lineTotal = Math.round(qty * c.unit_price * 100) / 100;
+      total += lineTotal;
+      items.push({ product_id: c.product_id, name: c.name, unit: c.unit, qty, unit_price: c.unit_price, line_total: lineTotal });
+    }
+    total = Math.round(total * 100) / 100;
+    const customerName = String(req.body?.customer_name || '').trim().slice(0, 80) || null;
+    const r = await query(
+      `INSERT INTO waitlist_orders (invite_id, business_id, branch_id, customer_phone, customer_name, items, total)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [inv.id, inv.business_id, inv.branch_id, inv.customer_phone, customerName, JSON.stringify(items), total],
+    );
+    if (inv.status === 'pending') {
+      await query("UPDATE waitlist_invites SET status = 'ordered' WHERE id = $1", [inv.id]);
+    }
+    const order = r.rows[0];
+    res.json({
+      order: { ...order, ref: String(order.id).slice(0, 8).toUpperCase() },
+      contact: { name: inv.creator_name, phone: inv.creator_phone },
+    });
+  } catch (e) {
+    console.error('shop order failed:', e.message);
+    res.status(500).json({ error: 'Could not place order.' });
+  }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`[api] listening on :${PORT}`));

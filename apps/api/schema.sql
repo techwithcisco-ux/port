@@ -306,6 +306,43 @@ CREATE INDEX IF NOT EXISTS idx_audit_occurred ON audit_events(occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_query_log_created ON query_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_invoices_branch ON invoices(branch_id);
 
+-- ── Customer waitlist / shop-link ordering ─────────────────────
+-- A rep creates an invite for a customer phone number; the customer opens
+-- the public shop link (token), sees live branch availability at RETAIL
+-- prices only, picks quantities, and submits. The order row is recorded
+-- server-side (prices recomputed from the DB — client totals are ignored)
+-- and the customer forwards it to the retailer over WhatsApp.
+
+CREATE TABLE IF NOT EXISTS waitlist_invites (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id uuid NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+  created_by uuid NOT NULL REFERENCES users(id),
+  customer_phone text NOT NULL,
+  token text NOT NULL UNIQUE,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'ordered', 'expired', 'revoked')),
+  expires_at timestamptz NOT NULL DEFAULT now() + interval '7 days',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS waitlist_orders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  invite_id uuid NOT NULL REFERENCES waitlist_invites(id) ON DELETE CASCADE,
+  business_id uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id uuid NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+  customer_phone text NOT NULL,
+  customer_name text,
+  items jsonb NOT NULL DEFAULT '[]'::jsonb,
+  total numeric NOT NULL DEFAULT 0 CHECK (total >= 0),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'fulfilled', 'cancelled')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_waitlist_invites_business ON waitlist_invites(business_id);
+CREATE INDEX IF NOT EXISTS idx_waitlist_invites_token ON waitlist_invites(token);
+CREATE INDEX IF NOT EXISTS idx_waitlist_orders_business ON waitlist_orders(business_id);
+CREATE INDEX IF NOT EXISTS idx_waitlist_orders_invite ON waitlist_orders(invite_id);
+
 -- ── Professional auth (access + refresh rotation, lockout, reset) ──
 -- Short-lived access JWTs are stateless; refresh tokens are opaque and
 -- stored hashed so a DB leak does not yield live sessions. Password

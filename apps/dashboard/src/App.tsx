@@ -38,6 +38,7 @@ import SplashScreen from './components/SplashScreen';
 import ManagerStock from './routes/manager/ManagerStock';
 import ManagerMoney from './routes/manager/ManagerMoney';
 import ManagerTeam from './routes/manager/ManagerTeam';
+import Waitlist from './routes/manager/Waitlist';
 import { useState, useCallback } from 'react';
 
 // Route guard: renders children only once a profile with the required role
@@ -70,14 +71,14 @@ function RequireRole({
   roles,
   children,
 }: {
-  roles: Array<'manager' | 'owner'>;
+  roles: Array<'manager' | 'owner' | 'staff'>;
   children: JSX.Element;
 }) {
   const { loading, authUserId, profile } = useAuth();
 
   if (loading) return <LoadingScreen />;
   if (!authUserId || !profile) return <Navigate to="/login" replace />;
-  if (!roles.includes(profile.role as 'manager' | 'owner')) {
+  if (!roles.includes(profile.role as 'manager' | 'owner' | 'staff')) {
     return <Navigate to="/" replace />;
   }
   return children;
@@ -260,6 +261,14 @@ export default function App() {
             element={
               <RequireRole roles={['manager', 'owner']}>
                 <ManagerTeam />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/manager/waitlist"
+            element={
+              <RequireRole roles={['staff', 'manager', 'owner']}>
+                <Waitlist />
               </RequireRole>
             }
           />

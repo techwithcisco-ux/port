@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { loadFeatureConfig, isFeatureEnabled, type FeatureKey } from '@branchport/shared';
-import { IconCart, IconCurrency, IconTeam, IconSettings, IconReceipt } from './Icons';
+import { IconCart, IconCurrency, IconTeam, IconSettings, IconReceipt, IconShop } from './Icons';
 import { Nsoromma, Aya, Dwennimmen, NkrumahSilhouette } from './AdinkraSymbols';
 import InstallBanner from './InstallBanner';
 
@@ -23,6 +23,7 @@ const managerLinks: NavLink[] = [
   { to: '/manager/stock', label: 'Aduane (Stock)', icon: <Aya size={18} /> },
   { to: '/manager/money', label: 'Sika (Money)', icon: <IconCurrency size={18} /> },
   { to: '/manager/team', label: 'Adwo (Team)', icon: <IconTeam size={18} /> },
+  { to: '/manager/waitlist', label: 'Waitlist (Orders)', icon: <IconShop size={18} /> },
 ];
 
 const ownerLinks: NavLink[] = [

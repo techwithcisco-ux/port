@@ -36,6 +36,8 @@ DELETE FROM supplier_reconciliations;
 DELETE FROM product_variants;
 DELETE FROM products;
 DELETE FROM suppliers;
+DELETE FROM waitlist_orders;
+DELETE FROM waitlist_invites;
 
 -- ── Users, then branches, then businesses ──
 DELETE FROM users;
@@ -50,6 +52,8 @@ UNION ALL SELECT 'sales', count(*) FROM sales
 UNION ALL SELECT 'products', count(*) FROM products
 UNION ALL SELECT 'audit_events', count(*) FROM audit_events
 UNION ALL SELECT 'refresh_tokens', count(*) FROM refresh_tokens
-UNION ALL SELECT 'password_reset_tokens', count(*) FROM password_reset_tokens;
+UNION ALL SELECT 'password_reset_tokens', count(*) FROM password_reset_tokens
+UNION ALL SELECT 'waitlist_orders', count(*) FROM waitlist_orders
+UNION ALL SELECT 'waitlist_invites', count(*) FROM waitlist_invites;
 
 COMMIT;

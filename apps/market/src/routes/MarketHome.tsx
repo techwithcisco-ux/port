@@ -81,7 +81,8 @@ export default function MarketHome() {
         </div>
       )}
 
-      {/* ── LIVE MARKET TICKER ── */}        <div className="card overflow-hidden mb-6 sm:mb-8">
+      {/* ── LIVE MARKET TICKER ── */}
+      <div className="card overflow-hidden mb-6 sm:mb-8">
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-gray-900">Live Market Ticker</p>
@@ -89,8 +90,8 @@ export default function MarketHome() {
           </div>
           <Link to="/live" className="text-xs text-gray-500 hover:text-gray-700">Full chart →</Link>
         </div>
-        <div className="overflow-x-auto">              <div className="overflow-x-auto">
-              <table className="w-full text-xs sm:text-sm min-w-[500px]">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm min-w-[500px]">
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500">Item</th>
@@ -121,8 +122,8 @@ export default function MarketHome() {
                   </td>
                 </tr>
               ))}
-            </tbody>              </table>
-              </div>
+            </tbody>
+          </table>
         </div>
       </div>
 

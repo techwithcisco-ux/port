@@ -1,4 +1,4 @@
-# BranchPort on Render — Postgres + API + 3 static frontends.
+# BranchPort on Render — Postgres + API + 4 static frontends.
 #
 # Setup order:
 #   1. Push this repo, create a Blueprint from render.yaml.
@@ -59,6 +59,12 @@ services:
           type: web
           property: host
           # Render injects `https://<host>` — the dashboard appends /api paths.
+      - key: VITE_SHOP_URL
+        fromService:
+          name: branchport-shop
+          type: web
+          property: host
+          # Public storefront origin for waitlist /w/:token links.
     routes:
       - type: rewrite
         source: /*
@@ -89,6 +95,23 @@ services:
     runtime: static
     buildCommand: npm install && npm run build --workspace=@branchport/shared && VITE_BASE=/ npm run build:market
     staticPublishPath: apps/market/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: branchport-api
+          type: web
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # ── Shop (public customer storefront, /w/:token links) ─────────
+  - name: branchport-shop
+    type: web
+    runtime: static
+    buildCommand: npm install && npm run build --workspace=@branchport/shared && VITE_BASE=/ npm run build:shop
+    staticPublishPath: apps/shop/dist
     envVars:
       - key: VITE_API_URL
         fromService:

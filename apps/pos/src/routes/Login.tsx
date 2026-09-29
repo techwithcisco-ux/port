@@ -2,11 +2,37 @@ import { useState, FormEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, loadSavedPhone } from '../contexts/AuthContext';
 
+function EyeIcon({ off }: { off?: boolean }) {
+  return off ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+      <path d="M14.12 14.12a3 3 0 11-4.24-4.24" />
+      <path d="M2 2l20 20" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
 export default function Login() {
   const { signInWithPhone, authUserId, profile, activateAccount } = useAuth();
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -60,8 +86,7 @@ export default function Login() {
       }
 
       // Activate POS access from the token (handled by AuthContext).
-      // Activation is single-use and grants no session — staff then sign
-      // in below with the password from their invite message.
+      // The server burns the single-use token and opens a session.
       const result = await activateAccount(token);
       if (result.error) {
         setActivationError(result.error);
@@ -73,7 +98,7 @@ export default function Login() {
       setShowActivation(false);
       setActivationUrl('');
       if (result.phone) setPhone(result.phone);
-      setNotice('Activated! Now sign in below with your phone number + the password from your invite message.');
+      setNotice('Activated! Now sign in below with your phone number + password.');
     } catch {
       setActivationError('Invalid URL. Paste the full activation link from WhatsApp.');
     }
@@ -82,133 +107,140 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{background: 'var(--cream)'}}>
-      <div className="bg-white shadow-xl rounded-3xl w-full max-w-sm space-y-0 overflow-hidden">
-        {/* Ghana flag stripe */}
-        <div className="ghana-stripe"><div className="red" /><div className="gold" /><div className="green" /></div>
-        <div className="p-8 space-y-6">
-        {/* Brand — Ghana cultural */}
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl mb-4" style={{background: 'var(--ghana-gold)'}}>
-            <span className="text-2xl font-bold" style={{color: 'var(--ghana-black)'}}>★</span>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-10">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-7">
+          <div className="inline-grid h-14 w-14 place-items-center rounded-2xl shadow-lg mb-4" style={{ background: 'var(--ghana-green)', boxShadow: '0 12px 28px rgba(0,107,63,0.25)' }}>
+            <span className="text-xl font-black leading-none text-white">★</span>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">🇬🇭 BranchPort</h1>
-          <p className="text-sm mt-1" style={{color: 'var(--ghana-green)'}}>Akwaaba — Point of Sale</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">BranchPort POS</p>
+          <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-gray-900">Till sign in</h1>
+          <p className="mt-1 text-sm text-gray-500">Your branch, ready to sell</p>
         </div>
 
-        {/* Phone input — large, visual, icon-prefixed */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="5" y="2" width="14" height="20" rx="3" />
-                  <path d="M12 18h.01" />
-                </svg>
-              </span>
+        <div className="rounded-3xl border border-gray-200/80 bg-white p-6 shadow-[0_8px_30px_rgba(17,24,39,0.08)] sm:p-7">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="pos-phone" className="label">Phone number</label>
               <input
+                id="pos-phone"
                 type="tel"
                 required
                 autoComplete="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="Phone number"
+                placeholder="054 354 7819"
                 inputMode="tel"
-                className="w-full pl-12 pr-4 py-4 text-lg border-2 border-gray-200 rounded-2xl bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white transition-colors"
+                className="input w-full !py-3.5 !text-base"
               />
+              <p className="mt-1.5 text-xs text-gray-400">The number your manager registered for you</p>
             </div>
-            <p className="text-xs text-gray-400 mt-2 text-center">Your manager registered this number for you</p>
-          </div>
 
-          <div>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password (from your invite message)"
-              className="w-full px-4 py-4 text-lg border-2 border-gray-200 rounded-2xl bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white transition-colors"
-            />
-          </div>
-
-          {error && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-              <span className="text-red-500">⚠</span>
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          {notice && (
-            <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-              <span className="text-green-600">✓</span>
-              <p className="text-sm text-green-800">{notice}</p>
-            </div>
-          )}
-
-          <button type="submit" disabled={submitting} className="w-full text-white rounded-2xl py-4 text-lg font-bold disabled:opacity-60 min-h-[56px]" style={{background: 'var(--ghana-green)'}}>
-            {submitting ? 'Signing in…' : '★ Bra / Sign In'}
-          </button>
-        </form>
-
-        {/* ── Activation link section — visual, icon-first ── */}
-        <div className="border-t border-gray-100 pt-4">
-          {!showActivation ? (
-            <button
-              type="button"
-              onClick={() => setShowActivation(true)}
-              className="w-full flex items-center justify-center gap-2 text-sm text-gray-500 hover:text-gray-700 py-3 rounded-xl border border-dashed border-gray-200 hover:border-gray-400 transition-colors"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-              </svg>
-              New here? Paste activation link
-            </button>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-                </svg>
-                <span className="font-medium">Paste activation link</span>
-              </div>
-              <div className="flex gap-2">
+            <div>
+              <label htmlFor="pos-password" className="label">Password</label>
+              <div className="relative">
                 <input
-                  type="url"
-                  value={activationUrl}
-                  onChange={(e) => setActivationUrl(e.target.value)}
-                  placeholder="https://...activate?token=..."
-                  className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white"
+                  id="pos-password"
+                  type={showPw ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="From your invite message"
+                  className="input w-full !py-3.5 !text-base pr-11"
                 />
                 <button
-                  onClick={handleActivate}
-                  disabled={activating || !activationUrl.trim()}
-                  className="px-5 py-3 bg-gray-900 text-white rounded-xl text-sm font-medium disabled:opacity-50 min-h-[48px]"
+                  type="button"
+                  onClick={() => setShowPw((s) => !s)}
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
                 >
-                  {activating ? '…' : 'Go'}
+                  <EyeIcon off={showPw} />
                 </button>
               </div>
-              {activationError && (
-                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-                  <span className="text-red-500">⚠</span>
-                  <p className="text-xs text-red-700">{activationError}</p>
-                </div>
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2.5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-red-500 text-[11px] font-bold text-white">!</span>
+                <p className="text-sm leading-snug text-red-800">{error}</p>
+              </div>
+            )}
+
+            {notice && (
+              <div className="flex items-start gap-2.5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-500 text-[11px] font-bold text-white">✓</span>
+                <p className="text-sm leading-snug text-emerald-800">{notice}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-2xl py-4 text-base font-bold text-white transition-all disabled:opacity-60 active:scale-[0.99]"
+              style={{ background: 'var(--ghana-green)' }}
+            >
+              {submitting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  Signing in…
+                </span>
+              ) : (
+                'Sign in to till'
               )}
+            </button>
+          </form>
+
+          <div className="mt-5 border-t border-gray-100 pt-4">
+            {!showActivation ? (
               <button
                 type="button"
-                onClick={() => { setShowActivation(false); setActivationUrl(''); setActivationError(null); }}
-                className="w-full text-center text-xs text-gray-400 hover:text-gray-600 py-2"
+                onClick={() => setShowActivation(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-200 py-3 text-sm font-medium text-gray-500 hover:border-gray-400 hover:text-gray-700"
               >
-                Cancel
+                <LinkIcon />
+                New here? Paste activation link
               </button>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <LinkIcon />
+                  Paste activation link
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={activationUrl}
+                    onChange={(e) => setActivationUrl(e.target.value)}
+                    placeholder="https://…/activate?token=…"
+                    className="input min-w-0 flex-1"
+                  />
+                  <button
+                    onClick={handleActivate}
+                    disabled={activating || !activationUrl.trim()}
+                    className="shrink-0 rounded-xl bg-gray-900 px-5 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {activating ? '…' : 'Go'}
+                  </button>
+                </div>
+                {activationError && (
+                  <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5">
+                    <span className="text-red-500">⚠</span>
+                    <p className="text-xs leading-snug text-red-700">{activationError}</p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setShowActivation(false); setActivationUrl(''); setActivationError(null); }}
+                  className="w-full py-1 text-center text-xs text-gray-400 hover:text-gray-600"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
-

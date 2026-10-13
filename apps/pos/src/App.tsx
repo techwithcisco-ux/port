@@ -8,6 +8,7 @@ import Sell from './routes/Sell';
 import Dashboard from './routes/Dashboard';
 import InvoiceHistory from './routes/InvoiceHistory';
 import Debtors from './routes/Debtors';
+import Waitlist from './routes/Waitlist';
 import PosBalanceSheet from './routes/PosBalanceSheet';
 import CalculatorPage from './routes/CalculatorPage';
 import SyncPage from './routes/SyncPage';
@@ -101,6 +102,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <Debtors />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/waitlist"
+            element={
+              <RequireAuth>
+                <Waitlist />
               </RequireAuth>
             }
           />

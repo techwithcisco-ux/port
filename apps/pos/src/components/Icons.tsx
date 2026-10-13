@@ -224,3 +224,24 @@ export function IconSignal({ size = 24, online = true, ...props }: IconProps & {
     </svg>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// WAITLIST — a clipboard with a clock, for queued customer orders
+// ═══════════════════════════════════════════════════════════════════════
+export function IconWaitlist({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      {/* Clipboard body */}
+      <rect x="4" y="4" width="16" height="18" rx="2" />
+      {/* Clipboard clip */}
+      <rect x="8" y="1" width="8" height="5" rx="1" />
+      {/* Clock face — bottom-right corner */}
+      <circle cx="16" cy="16" r="4" fill="currentColor" opacity="0.12" />
+      <circle cx="16" cy="16" r="4" />
+      <path d="M16 14v2.5l1.5 1" />
+      {/* Checklist lines */}
+      <path d="M8 10h4" />
+      <path d="M8 14h3" />
+    </svg>
+  );
+}

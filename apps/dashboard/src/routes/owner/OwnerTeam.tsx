@@ -25,6 +25,7 @@ export default function OwnerTeam() {
   const [branchId, setBranchId] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [newRole, setNewRole] = useState<'staff' | 'manager'>('staff');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedStaff | null>(null);
@@ -52,10 +53,11 @@ export default function OwnerTeam() {
   async function refresh() {
     const [b, u] = await Promise.all([
       api.from('branches').select('*'),
-      api.from('users').select('*').eq('role', 'staff'),
+      api.from('users').select('*'),
     ]);
     setBranches((b.data as Branch[]) ?? []);
-    setStaff((u.data as AppUser[]) ?? []);
+    const allUsers = (u.data as AppUser[]) ?? [];
+    setStaff(allUsers.filter((s) => s.role === 'staff' || s.role === 'manager'));
     setLoading(false);
   }
 
@@ -76,14 +78,14 @@ export default function OwnerTeam() {
     const pw = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
     const cleanPhone = phone.trim().replace(/\s+/g, '').replace(/[^+\d]/g, '');
 
-    // One call creates the staff row with a bcrypt password (the API
+    // One call creates the staff/manager row with a bcrypt password (the API
     // takes the business from the caller's JWT).
     const res = await api.auth.createStaff({
       name: name.trim(),
       phone: cleanPhone,
       password: pw,
       branch_id: branchId,
-      role: 'staff',
+      role: newRole,
     });
     setBusy(false);
 
@@ -105,17 +107,19 @@ export default function OwnerTeam() {
     setVisiblePasswords((prev) => ({ ...prev, [newUserId]: pw }));
 
     // Auto-open WhatsApp
-    setTimeout(() => openWhatsApp(cleanPhone, name.trim(), activationUrl, pw), 300);
+    setTimeout(() => openWhatsApp(cleanPhone, name.trim(), activationUrl, pw, newRole), 300);
 
     setName('');
     setPhone('');
+    setNewRole('staff');
     refresh();
   }
 
-  function openWhatsApp(phone: string, name: string, url: string, pw?: string) {
+  function openWhatsApp(phone: string, name: string, url: string, pw?: string, role: 'staff' | 'manager' = 'staff') {
     const clean = phone.replace(/\s+/g, '').replace(/[^+\d]/g, '');
     const full = clean.startsWith('+') ? clean.slice(1) : clean.startsWith('0') ? '233' + clean.slice(1) : clean;
-    const msg = `Hi ${name}, you've been added to BranchPort POS!\n\nSign in on the POS app with your phone number${pw ? ` + this password: ${pw}` : ''} (keep it safe).\n\n${url}`;
+    const roleLabel = role === 'manager' ? 'manager' : 'staff member';
+    const msg = `Hi ${name}, you've been added to BranchPort POS as a ${roleLabel}!\n\nSign in on the POS app with your phone number${pw ? ` + this password: ${pw}` : ''} (keep it safe).\n\n${url}`;
     window.open(`https://wa.me/${full}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
   }
 
@@ -205,10 +209,14 @@ export default function OwnerTeam() {
       </div>
 
       {/* ── Stats row ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <div className="card p-4">
-          <p className="stat-label">Staff members</p>
+          <p className="stat-label">Team members</p>
           <p className="stat-value">{staff.length}</p>
+        </div>
+        <div className="card p-4">
+          <p className="stat-label">Managers</p>
+          <p className="stat-value">{staff.filter((s) => s.role === 'manager').length}</p>
         </div>
         <div className="card p-4">
           <p className="stat-label">Branches</p>
@@ -228,16 +236,51 @@ export default function OwnerTeam() {
         >
           <span className="h-10 w-10 rounded-xl bg-gray-900 text-white grid place-items-center text-lg">+</span>
           <div className="text-left">
-            <p className="text-sm font-semibold text-gray-900">Add staff member</p>
-            <p className="text-xs text-gray-500">Create account and send activation link</p>
+            <p className="text-sm font-semibold text-gray-900">Add team member</p>
+            <p className="text-xs text-gray-500">Create a staff or manager account</p>
           </div>
         </button>
       ) : (
         <form onSubmit={handleAdd} className="card p-4 space-y-2 mb-3">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-semibold text-gray-900">New staff member</p>
+            <p className="text-sm font-semibold text-gray-900">New team member</p>
             <button type="button" onClick={() => { setShowAdd(false); setError(null); }} className="text-xs text-gray-400 hover:text-gray-600">✕ Cancel</button>
           </div>
+
+          {/* Role selector — staff or manager */}
+          <div>
+            <label className="label">Role *</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setNewRole('staff')}
+                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  newRole === 'staff'
+                    ? 'bg-gray-900 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                👤 Staff
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewRole('manager')}
+                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  newRole === 'manager'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                👔 Manager
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">
+              {newRole === 'manager'
+                ? 'Managers can access the dashboard, stock, sales, and add branches.'
+                : 'Staff can only use the POS till at their assigned branch.'}
+            </p>
+          </div>
+
           <div>
             <label className="label">Branch *</label>
             <select required value={branchId} onChange={(e) => setBranchId(e.target.value)} className="select w-full">
@@ -258,7 +301,7 @@ export default function OwnerTeam() {
           </div>
           {error && <p className="text-sm text-red-800">{error}</p>}
           <button type="submit" disabled={busy || branches.length === 0} className="btn btn-primary w-full">
-            {busy ? 'Creating…' : 'Create & send activation link'}
+            {busy ? 'Creating…' : `Create ${newRole} & send activation link`}
           </button>
         </form>
       )}
@@ -266,13 +309,13 @@ export default function OwnerTeam() {
       {/* ── Staff list ── */}
       <div className="card overflow-hidden mb-3">
         <div className="card-header flex items-center justify-between">
-          <span>Staff ({staff.length})</span>
+          <span>Team ({staff.length})</span>
           <Link to="/manager/staff" className="text-xs text-gray-500 hover:text-gray-900">Advanced view →</Link>
         </div>
         {staff.length === 0 ? (
           <div className="p-8 text-center text-gray-400">
             <p className="text-3xl mb-2">👥</p>
-            <p className="text-sm">No staff yet. Tap "+ Add staff member" above.</p>
+            <p className="text-sm">No team members yet. Tap "+ Add team member" above.</p>
           </div>
         ) : (
           <ul className="divide-y">
@@ -322,6 +365,9 @@ export default function OwnerTeam() {
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2 min-w-0">
                           <p className="font-medium truncate">{s.name}</p>
+                          {s.role === 'manager' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">Manager</span>
+                          )}
                           {s.pos_activated ? (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Active</span>
                           ) : (

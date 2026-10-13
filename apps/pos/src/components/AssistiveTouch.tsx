@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { loadFeatureConfig, isFeatureEnabled } from '@branchport/shared';
-import { IconCart, IconBox, IconReceipt, IconDebtors, IconChart, IconCalculator, IconSync } from './Icons';
+import { IconCart, IconBox, IconReceipt, IconDebtors, IconChart, IconCalculator, IconSync, IconWaitlist } from './Icons';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
 
@@ -25,6 +25,7 @@ const allTabs: Tab[] = [
   { to: '/dashboard', label: 'Stock', icon: <IconBox size={24} /> },
   { to: '/invoices', label: 'Invoices', icon: <IconReceipt size={24} />, feature: 'pos_invoice_history' },
   { to: '/debtors', label: 'Debtors', icon: <IconDebtors size={24} /> },
+  { to: '/waitlist', label: 'Waitlist', icon: <IconWaitlist size={24} /> },
   { to: '/balance-sheet', label: 'Balance', icon: <IconChart size={24} />, feature: 'pos_balance_sheet' },
   { to: '/calculator', label: 'Calculator', icon: <IconCalculator size={24} />, feature: 'posCalculator' },
   { to: '/sync', label: 'Sync', icon: <IconSync size={24} /> },

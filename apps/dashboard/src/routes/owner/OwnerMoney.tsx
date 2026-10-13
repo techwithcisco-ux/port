@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import PageHeader from '../../components/PageHeader';
 import { api } from '../../lib/api';
 import type { Product, Sale, InventoryAllocation, Invoice, Debtor, Creditor } from '@branchport/shared';
 import { formatGHS, startOfMonth } from '../../lib/utils';
@@ -92,10 +93,7 @@ export default function OwnerMoney() {
 
   return (
     <DashboardLayout>
-      <div className="mb-3">
-        <h1 className="text-2xl font-bold text-gray-900">Money</h1>
-        <p className="text-sm text-gray-500 mt-1">This month's financial overview.</p>
-      </div>
+      <PageHeader title="Money" subtitle="This month's financial overview." />
 
       {/* Tab selector */}
       <div className="flex gap-2 mb-3">

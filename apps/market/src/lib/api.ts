@@ -465,3 +465,63 @@ export async function getActivityLog(): Promise<UserActivityLog[]> {
 
   return activities.sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 100);
 }
+
+// ── Platform Activity (study hub: everything, everywhere, when) ───
+
+export type ActivityKind = 'data' | 'auth' | 'order' | 'view';
+
+export interface ActivityEvent {
+  id: string;
+  at: string;
+  kind: ActivityKind;
+  action: string;
+  business_id: string | null;
+  user_id: string | null;
+  user_name: string | null;
+  business_name: string | null;
+  ref: string | null;
+}
+
+export interface ActivityFilters {
+  type?: '' | ActivityKind;
+  business_id?: string;
+  since?: string;
+  limit?: number;
+}
+
+function platformHeaders(): HeadersInit {
+  const token = (() => {
+    try { return localStorage.getItem('bp-market-token'); } catch { return null; }
+  })();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function checkSession(res: Response): void {
+  if (res.status === 401 || res.status === 403) {
+    platformLogout();
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    throw new Error('Session expired — sign in again.');
+  }
+}
+
+/** Unified timeline: data mutations, auth decisions, orders, shop views. */
+export async function getActivity(filters: ActivityFilters = {}): Promise<ActivityEvent[]> {
+  const sp = new URLSearchParams();
+  if (filters.type) sp.set('type', filters.type);
+  if (filters.business_id) sp.set('business_id', filters.business_id);
+  if (filters.since) sp.set('since', filters.since);
+  sp.set('limit', String(filters.limit ?? 150));
+  let res: Response;
+  try {
+    res = await fetch(`${apiBaseUrl}/platform/activity?${sp.toString()}`, {
+      headers: platformHeaders(),
+    });
+  } catch {
+    throw new Error('Could not reach the server. Check your connection.');
+  }
+  checkSession(res);
+  let body: { error?: string; data?: ActivityEvent[] } = {};
+  try { body = JSON.parse(await res.text()) ?? {}; } catch { /* non-JSON */ }
+  if (res.status !== 200 || !body.data) throw new Error(body.error || `Activity failed (${res.status}).`);
+  return body.data;
+}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { RevenueByDay, RevenueByBranch } from '../../lib/charts';
 import { api } from '../../lib/api';
@@ -67,7 +67,8 @@ export default function SalesReport() {
     let q = api
       .from('sales')
       .select('*')
-      .order('sold_at', { ascending: false });
+      .order('sold_at', { ascending: false })
+      .limit(2000);
     if (fromIso) q = q.gte('sold_at', fromIso);
     if (toIso) q = q.lte('sold_at', toIso);
     if (branchId !== 'all') q = q.eq('branch_id', branchId);
@@ -162,22 +163,21 @@ export default function SalesReport() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div>
-        <div>
-          <h1 className="page-title">Sales report</h1>
-          <p className="page-sub">Filter, compare and export transactions.</p>
-        </div>
-        <button
-          onClick={exportCsv}
-          disabled={sales.length === 0}
-          className="btn btn-primary"
-        >
-          Export CSV
-        </button>
-      </div>
+      <PageHeader
+        title="Sales report"
+        subtitle="Filter, compare and export transactions."
+        right={
+          <button
+            onClick={exportCsv}
+            disabled={sales.length === 0}
+            className="btn btn-primary"
+          >
+            Export CSV
+          </button>
+        }
+      />
 
-      <div className="card p-4 mb-3 flex flex-wrap gap-3 items-end">
+      <div className="card p-4 mt-6 mb-3 flex flex-wrap gap-3 items-end">
         <div>
           <label className="label">Period</label>
           <select

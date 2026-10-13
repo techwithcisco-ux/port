@@ -2,6 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Brand tokens. These used to live only in the dashboard stylesheet, so
+   every `var(--ghana-*)` in the POS resolved to nothing (transparent) —
+   the Sign-in button, the logo tile and the AssistiveTouch button all
+   rendered invisible. Declared here too so each app is self-contained. */
+:root {
+  /* Ghana Flag */
+  --ghana-red: #CE1126;
+  --ghana-gold: #FCD116;
+  --ghana-green: #006B3F;
+  --ghana-black: #1a1a2e;
+  /* Kente Accents */
+  --kente-indigo: #2D1B69;
+  --kente-orange: #D4621B;
+  --kente-teal: #0E7C6B;
+  --kente-maroon: #7B1A2C;
+  /* Warm neutrals */
+  --cream: #FEFDF5;
+  --sand: #E8DFC4;
+
+  /* Semantic layers — kept in lockstep with apps/dashboard/src/index.css */
+  --paper: #ffffff;
+  --paper-soft: #FBF9F1;
+  --ink: #1a1a2e;
+  --ink-soft: #4a4a5e;
+  --ink-mute: #7c7c8e;
+  --ink-faint: #a3a3b4;
+  --line: #EAE3CE;
+  --line-strong: #DBD2B4;
+
+  --green-tint: rgba(0, 107, 63, 0.07);
+  --green-ring: rgba(0, 107, 63, 0.14);
+  --gold-tint: rgba(252, 209, 22, 0.22);
+  --red-tint: rgba(206, 17, 38, 0.07);
+
+  --shadow-1: 0 1px 2px rgba(26, 26, 46, 0.05), 0 1px 3px rgba(26, 26, 46, 0.04);
+  --shadow-2: 0 1px 2px rgba(26, 26, 46, 0.05), 0 8px 24px -10px rgba(26, 26, 46, 0.14);
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
@@ -10,7 +53,8 @@
   }
 
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply text-ink antialiased;
+    background: var(--cream);
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: none;
   }
@@ -35,14 +79,100 @@
 }
 
 @layer components {
+  /* Typography ------------------------------------------------------ */
+  .page-title {
+    @apply text-lg sm:text-[1.3rem] font-bold text-ink;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+  }
+
+  .page-sub {
+    @apply mt-1 text-[13px] text-ink-mute;
+  }
+
+  /* Surfaces -------------------------------------------------------- */
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-1);
+  }
+
+  .panel {
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+  }
+
+  /* Form controls --------------------------------------------------- */
   .label {
-    @apply block text-xs font-medium text-gray-500 mb-1.5;
+    @apply block text-xs font-semibold text-ink-mute mb-1.5;
+    letter-spacing: 0.01em;
   }
 
   .input,
   .select {
-    @apply rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-gray-900 transition-all placeholder:text-gray-400 hover:border-gray-300 focus:border-gray-900/25 focus:outline-none focus:ring-4 focus:ring-gray-900/5;
+    border: 2px solid var(--line);
+    background: var(--paper);
+    border-radius: var(--r-md);
+    color: var(--ink);
+    @apply px-3.5 py-3 transition-all duration-150 placeholder:text-ink-faint focus:outline-none;
+    box-shadow: inset 0 1px 1px rgba(26, 26, 46, 0.03);
     min-height: 44px;
+  }
+  .input:hover,
+  .select:hover {
+    border-color: var(--line-strong);
+  }
+  .input:focus,
+  .select:focus {
+    border-color: var(--ghana-green);
+    box-shadow: 0 0 0 4px var(--green-ring);
+  }
+
+  /* Buttons --------------------------------------------------------- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus-visible:ring-4 focus-visible:ring-ghana-green/20;
+    min-height: 44px;
+    padding-left: 18px;
+    padding-right: 18px;
+    letter-spacing: -0.005em;
+  }
+  .btn:not(:disabled):active {
+    transform: translateY(1px) scale(0.99);
+  }
+
+  .btn-primary {
+    background: var(--ghana-green);
+    color: #fff;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.16) inset, 0 8px 20px -12px rgba(0, 107, 63, 0.9);
+  }
+  .btn-primary:not(:disabled):hover {
+    background: #007A4A;
+  }
+
+  .btn-gold {
+    background: var(--ghana-gold);
+    color: var(--ink);
+    @apply font-bold;
+  }
+
+  .btn-outline {
+    background: var(--paper);
+    border: 1.5px solid var(--line-strong);
+    color: var(--ink-soft);
+  }
+  .btn-outline:not(:disabled):hover {
+    background: var(--paper-soft);
+    border-color: var(--ink-faint);
+    color: var(--ink);
+  }
+
+  /* Tags ------------------------------------------------------------ */
+  .tag {
+    @apply inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold;
+    background: var(--green-tint);
+    color: var(--ghana-green);
   }
 }
 
@@ -95,7 +225,7 @@
     width: 100% !important;
     max-width: none !important;
     border-right: none !important;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--line);
     max-height: 55vh;
   }
   .pos-right-panel {
@@ -104,9 +234,12 @@
   }
 }
 
-/* iPhone home-indicator clearance for fixed bottom bars */
+/* iPhone home-indicator / status-bar clearance */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* AssistiveTouch floating menu */
@@ -129,3 +262,17 @@
     font-size: 18px;
   }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   GHANA FLAG STRIPE — shared chrome accent (same as dashboard)
+   ═══════════════════════════════════════════════════════════════════ */
+.ghana-stripe {
+  display: flex;
+  height: 5px;
+  width: 100%;
+}
+.ghana-stripe > div { flex: 1; }
+.ghana-stripe .red { background: var(--ghana-red); }
+.ghana-stripe .gold { background: var(--ghana-gold); }
+.ghana-stripe .green { background: var(--ghana-green); }

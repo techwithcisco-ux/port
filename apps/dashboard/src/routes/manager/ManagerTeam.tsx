@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import PageHeader from '../../components/PageHeader';
 import { api } from '../../lib/api';
 import type { Branch } from '@branchport/shared';
 
@@ -27,10 +28,7 @@ export default function ManagerTeam() {
 
   return (
     <DashboardLayout>
-      <div className="mb-3">
-        <h1 className="text-2xl font-bold text-gray-900">Team</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage your staff.</p>
-      </div>
+      <PageHeader title="Team" subtitle="Manage your staff." />
 
       {/* Staff invite */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4">

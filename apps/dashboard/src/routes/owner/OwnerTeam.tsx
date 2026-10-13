@@ -1,6 +1,7 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import PageHeader from '../../components/PageHeader';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, AppUser } from '@branchport/shared';
@@ -184,10 +185,10 @@ export default function OwnerTeam() {
 
   return (
     <DashboardLayout>
-      <div className="mb-3">
-        <h1 className="page-title">Team</h1>
-        <p className="page-sub mt-1">Your staff members — connected to branches. Stock allocated to a branch shows on that staff member's POS.</p>
-      </div>
+      <PageHeader
+        title="Team"
+        subtitle="Your staff members — connected to branches. Stock allocated to a branch shows on that staff member's POS."
+      />
 
       {/* ── Quick actions ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">

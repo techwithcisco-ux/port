@@ -5,6 +5,7 @@ import { db } from '../lib/db';
 import { useAuth } from '../contexts/AuthContext';
 import type { Invoice } from '@branchport/shared';
 import { ghFormatDateTime } from '@branchport/shared';
+import SyncIndicator from '../components/SyncIndicator';
 
 function ghs(n: number): string {
   return `GHS ${n.toFixed(2)}`;
@@ -13,7 +14,6 @@ function ghs(n: number): string {
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending:   { bg: 'bg-amber-50',  text: 'text-amber-800',  label: 'Pending' },
   completed: { bg: 'bg-green-50',  text: 'text-green-800',  label: 'Completed' },
-  cancelled: { bg: 'bg-red-50',    text: 'text-red-800',    label: 'Cancelled' },
 };
 
 export default function InvoiceHistory() {
@@ -28,6 +28,7 @@ export default function InvoiceHistory() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let list = [...invoices];
@@ -46,8 +47,32 @@ export default function InvoiceHistory() {
     return list.sort((a, b) => b.created_at.localeCompare(a.created_at));
   }, [invoices, search, statusFilter]);
 
+  // Only invoices whose sale rows have NOT reached the server can be safely
+  // voided on this device: deleting their local sales returns the stock and,
+  // because those rows never pushed, nothing on the server is left orphaned.
+  // Once a sale has synced the goods have left the shop — the invoice and its
+  // sales must stay (append-only), so the action is blocked instead.
   async function handleDelete(id: string) {
     setDeleting(id);
+    setDeleteError(null);
+    const inv = invoices.find((i) => i.id === id);
+    if (inv) {
+      const sales = await db.sales
+        .filter((s) => s.branch_id === inv.branch_id && s.sold_at === inv.created_at)
+        .toArray();
+      if (sales.some((s) => s.synced)) {
+        setDeleteError(
+          'This invoice already synced — its sales are final and cannot be deleted. Settle it or edit quantities instead.',
+        );
+        setDeleting(null);
+        return;
+      }
+      // Roll back every local artifact: queued sale rows (restores till
+      // stock) and any unsynced debtor attached to this invoice.
+      await db.sales.bulkDelete(sales.map((s) => s.id));
+      const debtors = await db.debtors.where('invoice_id').equals(id).toArray();
+      await db.debtors.bulkDelete(debtors.map((d) => d.id));
+    }
     await db.invoices.delete(id);
     setDeleting(null);
     if (expandedId === id) setExpandedId(null);
@@ -59,7 +84,7 @@ export default function InvoiceHistory() {
   }
 
   const statusCounts = useMemo(() => {
-    const counts = { all: invoices.length, pending: 0, completed: 0, cancelled: 0 };
+    const counts = { all: invoices.length, pending: 0, completed: 0 };
     for (const inv of invoices) {
       if (inv.status in counts) counts[inv.status as keyof typeof counts]++;
     }
@@ -75,6 +100,7 @@ export default function InvoiceHistory() {
             <h1 className="text-xl font-semibold text-gray-900">Invoices</h1>
             <p className="text-sm text-gray-500 mt-0.5">{invoices.length} total</p>
           </div>
+          <SyncIndicator compact />
         </div>
 
         {/* Search */}
@@ -97,7 +123,7 @@ export default function InvoiceHistory() {
 
         {/* Status filter tabs */}
         <div className="flex gap-1.5">
-          {(['all', 'pending', 'completed', 'cancelled'] as const).map((s) => (
+          {(['all', 'pending', 'completed'] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
@@ -115,6 +141,13 @@ export default function InvoiceHistory() {
           ))}
         </div>
       </header>
+
+      {/* Delete blocked explanation */}
+      {deleteError && (
+        <div className="mx-4 mt-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-sm px-4 py-3">
+          {deleteError}
+        </div>
+      )}
 
       {/* Invoice list */}
       <div className="flex-1 px-4 py-4">
@@ -206,12 +239,6 @@ export default function InvoiceHistory() {
                           <span className="text-gray-500">Subtotal</span>
                           <span className="tabular-nums">{ghs(inv.subtotal)}</span>
                         </div>
-                        {inv.tax_rate > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Tax ({inv.tax_rate}%)</span>
-                            <span className="tabular-nums">{ghs(inv.tax_amount)}</span>
-                          </div>
-                        )}
                         <div className="flex justify-between font-semibold pt-1 border-t border-gray-100">
                           <span>Total</span>
                           <span className="tabular-nums">{ghs(inv.grand_total)}</span>
@@ -222,26 +249,16 @@ export default function InvoiceHistory() {
                         <p className="text-xs text-gray-500 italic">Note: {inv.notes}</p>
                       )}
 
-                      {/* Actions */}
-                      <div className="flex gap-2 pt-1">
-                        {inv.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => handleEdit(inv)}
-                              className="flex-1 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium"
-                            >
-                              Edit & resume
-                            </button>
-                            <button
-                              onClick={() => handleDelete(inv.id)}
-                              disabled={deleting === inv.id}
-                              className="px-4 py-2 rounded-lg border border-red-200 text-red-700 text-xs font-medium hover:bg-red-50 disabled:opacity-50"
-                            >
-                              {deleting === inv.id ? '…' : 'Delete'}
-                            </button>
-                          </>
-                        )}
-                        {inv.status === 'completed' && (
+                      {/* Actions — delete only offered on pending invoices
+                          (completed ones have synced sales and are final) */}
+                      {inv.status === 'pending' && (
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => handleEdit(inv)}
+                            className="flex-1 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium"
+                          >
+                            Edit & resume
+                          </button>
                           <button
                             onClick={() => handleDelete(inv.id)}
                             disabled={deleting === inv.id}
@@ -249,8 +266,8 @@ export default function InvoiceHistory() {
                           >
                             {deleting === inv.id ? '…' : 'Delete'}
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

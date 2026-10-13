@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
 import type { Sale, AuditEvent, Branch, InventoryAllocation, Product, AppUser } from '@branchport/shared';
@@ -87,9 +87,10 @@ export default function FlagsPanel() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <h1 className="page-title mb-1">Flags</h1>
-      <p className="page-sub mb-4">Pricing anomalies and backdating signatures, surfaced from the record.</p>
+      <PageHeader
+        title="Flags"
+        subtitle="Pricing anomalies and backdating signatures, surfaced from the record."
+      />
 
       <div className="seg mb-4 max-w-full overflow-x-auto">
         {TABS.map((t) => (

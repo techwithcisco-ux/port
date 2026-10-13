@@ -8,6 +8,7 @@ import ItemsTracker from './routes/ItemsTracker';
 import LiveMarketGraph from './routes/LiveMarketGraph';
 import UsageAnalytics from './routes/UsageAnalytics';
 import Reports from './routes/Reports';
+import Activity from './routes/Activity';
 
 function ProtectedRoutes() {
   const { authenticated } = useMarketAuth();
@@ -25,6 +26,7 @@ function ProtectedRoutes() {
         <Route path="live" element={<LiveMarketGraph />} />
         <Route path="analytics" element={<UsageAnalytics />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="activity" element={<Activity />} />
       </Route>
     </Routes>
   );

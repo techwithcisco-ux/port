@@ -5,6 +5,7 @@ import { db } from '../lib/db';
 import { useAuth } from '../contexts/AuthContext';
 import type { Product, InventoryAllocation, QueuedSale } from '@branchport/shared';
 import { saleBaseUnits } from '@branchport/shared';
+import SyncIndicator from '../components/SyncIndicator';
 
 function formatGHS(n: number): string {
   return `GHS ${n.toFixed(2)}`;
@@ -120,9 +121,12 @@ export default function PosBalanceSheet() {
             <h1 className="text-xl font-semibold text-gray-900">Balance Sheet</h1>
             <p className="text-sm text-gray-500 mt-1">{balanceSheet.branchName} — financial position</p>
           </div>
-          <div className="text-right">
-            <p className="text-sm font-medium text-gray-900">{profile?.name}</p>
-            <p className="text-xs text-gray-500">Staff • Balance sheet</p>
+          <div className="flex items-center gap-3">
+            <SyncIndicator compact />
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-900">{profile?.name}</p>
+              <p className="text-xs text-gray-500 capitalize">{profile?.role ?? 'Staff'} • Balance sheet</p>
+            </div>
           </div>
         </div>
         <div className="flex gap-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -148,7 +152,7 @@ export default function PosBalanceSheet() {
             to="/dashboard"
             className="flex-shrink-0 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-center text-[10px] sm:text-sm font-medium hover:bg-gray-200 min-h-[36px] flex items-center"
           >
-            Inventory
+            Stock
           </Link>
         </div>
       </header>

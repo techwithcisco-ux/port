@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
+import PageHeader from '../../components/PageHeader';
 import { ColorLegend, StatusBadge, ColorStatCard, GaugeMeter, BarMeter, SalesFunnel } from '../../components/Visuals';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Sale, InventoryIntake, Product, InventoryAllocation } from '@branchport/shared';
 import { formatGHS, startOfToday, startOfWeek, startOfMonth } from '../../lib/utils';
 import { calculateBusinessAnalytics } from '@branchport/shared';
-import { AdinkraStock, IconCurrency, IconBox, AdinkraAlert, IconChart } from '../../components/Icons';
+import { IconCurrency, IconBox, AdinkraAlert, IconChart } from '../../components/Icons';
 
 const PERIODS: Array<{ key: string; label: string; from: () => string }> = [
   { key: 'today', label: 'Today', from: startOfToday },
@@ -27,12 +28,12 @@ export default function ManagerHome() {
   useEffect(() => {
     const from = PERIODS.find((p) => p.key === period)?.from() ?? startOfToday();
     Promise.allSettled([
-      api.from('sales').select('*').gte('sold_at', from),
-      api.from('inventory_intake').select('amount_owed'),
-      api.from('supplier_payments').select('amount'),
-      api.from('products').select('*'),
-      api.from('inventory_allocations').select('*'),
-      api.from('branches').select('*'),
+      api.from('sales').select('*').gte('sold_at', from).limit(2000),
+      api.from('inventory_intake').select('amount_owed').limit(2000),
+      api.from('supplier_payments').select('amount').limit(2000),
+      api.from('products').select('*').limit(2000),
+      api.from('inventory_allocations').select('*').limit(2000),
+      api.from('branches').select('*').limit(2000),
     ]).then((results) => {
       const unwrap = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value.data ?? [] : [];
       const [s, i, p, pr, a, b] = results;
@@ -62,20 +63,17 @@ export default function ManagerHome() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
-        <div>
-          <div className="flex items-center gap-2">
-        <AdinkraStock size={20} className="text-emerald-600" />
-        <h1 className="page-title mb-0">Yield</h1>
-      </div>
-          <p className="page-sub">Live figures for the selected window — colors tell the story.</p>
-        </div>
-        <div className="seg max-w-full overflow-x-auto">
-          {PERIODS.map((p) => (
-            <button key={p.key} onClick={() => setPeriod(p.key)} className={`pill ${period === p.key ? 'pill-active' : ''}`}>{p.label}</button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Welcome back"
+        subtitle="Live figures for the selected window — colors tell the story."
+        right={
+          <div className="seg max-w-full overflow-x-auto">
+            {PERIODS.map((p) => (
+              <button key={p.key} onClick={() => setPeriod(p.key)} className={`pill ${period === p.key ? 'pill-active' : ''}`}>{p.label}</button>
+            ))}
+          </div>
+        }
+      />
 
       <ColorLegend items={[
         { color: 'bg-green-500', label: 'Good / Profit' },

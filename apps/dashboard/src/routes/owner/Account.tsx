@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../lib/api';
 import { BUSINESS_TYPE_LABELS, BUSINESS_FORM_LABELS } from '@branchport/shared';
@@ -104,11 +104,10 @@ export default function Account() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <h1 className="page-title mb-1">Account</h1>
-      <p className="page-sub mb-3">
-        Your business information from onboarding. Edit any details here.
-      </p>
+      <PageHeader
+        title="Account"
+        subtitle="Your business information from onboarding. Edit any details here."
+      />
 
       {status && (
         <div className="mb-4 px-4 py-2 bg-green-50 text-green-800 rounded-lg text-sm">{status}</div>

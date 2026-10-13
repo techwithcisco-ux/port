@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, Product, InventoryAllocation } from '@branchport/shared';
 import { BarMeter, ColorStatCard, ProfitBreakdown } from '../../components/Visuals';
 import { formatGHS } from '../../lib/utils';
-import { AdinkraAllocate, IconBox } from '../../components/Icons';
 
 interface ProfitBreakdown {
   bulkCostPrice: number;
@@ -132,11 +131,7 @@ export default function Allocation() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div className="flex items-center gap-2 mb-3">
-        <AdinkraAllocate size={22} className="text-gray-600" />
-        <h1 className="page-title mb-0">Stock allocation</h1>
-      </div>
+      <PageHeader title="Stock allocation" />
 
       <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
         <form onSubmit={handleDistribute} className="card p-4 space-y-2 h-fit">
@@ -186,8 +181,10 @@ export default function Allocation() {
                 <label className="label">Bulk purchase price</label>
                 <div className="flex items-center gap-3">
                   <button
+                    type="button"
                     onClick={() => setBulkCost(String(Math.max(0, Number(bulkCost) - 50)))}
                     className="h-10 w-12 rounded-xl bg-gray-200 text-gray-600 text-xl font-medium flex items-center justify-center"
+                    aria-label="Decrease Bulk purchase price"
                   >
                     −
                   </button>
@@ -201,8 +198,10 @@ export default function Allocation() {
                     placeholder="GHS"
                   />
                   <button
+                    type="button"
                     onClick={() => setBulkCost(String(Number(bulkCost) + 50))}
                     className="h-10 w-12 rounded-xl bg-gray-200 text-gray-600 text-xl font-medium flex items-center justify-center"
+                    aria-label="Increase Bulk purchase price"
                   >
                     +
                   </button>
@@ -217,8 +216,10 @@ export default function Allocation() {
                 <label className="label">Bulk size</label>
                 <div className="flex items-center gap-3">
                   <button
+                    type="button"
                     onClick={() => setTotalBulk(String(Math.max(0, Number(totalBulk) - 1)))}
                     className="h-10 w-12 rounded-xl bg-gray-200 text-gray-600 text-xl font-medium flex items-center justify-center"
+                    aria-label="Decrease Bulk size"
                   >
                     −
                   </button>
@@ -232,8 +233,10 @@ export default function Allocation() {
                     placeholder="Items per box"
                   />
                   <button
+                    type="button"
                     onClick={() => setTotalBulk(String(Number(totalBulk) + 1))}
                     className="h-10 w-12 rounded-xl bg-gray-200 text-gray-600 text-xl font-medium flex items-center justify-center"
+                    aria-label="Increase Bulk size"
                   >
                     +
                   </button>
@@ -248,8 +251,10 @@ export default function Allocation() {
                 <label className="label">Target selling price (per bulk)</label>
                 <div className="flex items-center gap-3">
                   <button
+                    type="button"
                     onClick={() => setTargetSell(String(Math.max(0, Number(targetSell) - 50)))}
                     className="h-10 w-12 rounded-xl bg-gray-200 text-gray-600 text-xl font-medium flex items-center justify-center"
+                    aria-label="Decrease Target selling price (per bulk)"
                   >
                     −
                   </button>
@@ -263,8 +268,10 @@ export default function Allocation() {
                     placeholder="GHS"
                   />
                   <button
+                    type="button"
                     onClick={() => setTargetSell(String(Number(targetSell) + 50))}
                     className="h-10 w-12 rounded-xl bg-gray-200 text-gray-600 text-xl font-medium flex items-center justify-center"
+                    aria-label="Increase Target selling price (per bulk)"
                   >
                     +
                   </button>
@@ -299,15 +306,19 @@ export default function Allocation() {
                     <span className="text-sm flex-1">{br.name}</span>
                     <div className="flex items-center gap-2">
                       <button
+                        type="button"
                         onClick={() => setPerBranch({ ...perBranch, [br.id]: Math.max(0, q - 1) })}
                         className="h-9 w-9 rounded-lg bg-gray-100 text-gray-600 text-sm font-medium flex items-center justify-center"
+                        aria-label={`Decrease quantity for ${br.name}`}
                       >
                         −
                       </button>
                       <span className="w-8 text-center text-sm font-medium tabular-nums">{q}</span>
                       <button
+                        type="button"
                         onClick={() => setPerBranch({ ...perBranch, [br.id]: q + 1 })}
                         className="h-9 w-9 rounded-lg bg-gray-100 text-gray-600 text-sm font-medium flex items-center justify-center"
+                        aria-label={`Increase quantity for ${br.name}`}
                       >
                         +
                       </button>

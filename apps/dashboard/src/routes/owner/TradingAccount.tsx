@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
 import { formatGHS, startOfMonth, startOfWeek } from '../../lib/utils';
@@ -166,24 +166,23 @@ export default function TradingAccount() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div>
-        <div>
-          <h1 className="page-title">Trading Account</h1>
-          <p className="page-sub">Opening stock, purchases, closing stock, and gross profit for the period.</p>
-        </div>
-        <div className="seg max-w-full overflow-x-auto">
-          {PERIODS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPeriod(p.key)}
-              className={`pill ${period === p.key ? 'pill-active' : ''}`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Trading Account"
+        subtitle="Opening stock, purchases, closing stock, and gross profit for the period."
+        right={
+          <div className="seg max-w-full overflow-x-auto">
+            {PERIODS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => setPeriod(p.key)}
+                className={`pill ${period === p.key ? 'pill-active' : ''}`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-3 mb-3 max-w-4xl lg:grid-cols-3">

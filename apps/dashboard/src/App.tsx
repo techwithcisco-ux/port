@@ -1,11 +1,10 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+﻿import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './routes/Login';
 import Signup from './routes/Signup';
 import ManagerHome from './routes/manager/ManagerHome';
 import Pos from './routes/manager/Pos';
-import Inventory from './routes/manager/Inventory';
 import Allocation from './routes/manager/Allocation';
 import Suppliers from './routes/manager/Suppliers';
 import SalesReport from './routes/manager/SalesReport';
@@ -33,12 +32,14 @@ import MarketIntelligence from './routes/owner/MarketIntelligence';
 import OwnerStockAllocation from './routes/owner/OwnerStockAllocation';
 import Account from './routes/owner/Account';
 import StaffNotice from './routes/StaffNotice';
+import Welcome from './routes/Welcome';
 import Onboarding from './routes/Onboarding';
 import SplashScreen from './components/SplashScreen';
 import ManagerStock from './routes/manager/ManagerStock';
 import ManagerMoney from './routes/manager/ManagerMoney';
 import ManagerTeam from './routes/manager/ManagerTeam';
 import Waitlist from './routes/manager/Waitlist';
+import { hasSeenWelcome } from './lib/utils';
 import { useState, useCallback } from 'react';
 
 // Route guard: renders children only once a profile with the required role
@@ -67,6 +68,13 @@ function LoadingScreen({ text = 'Loading…' }: { text?: string }) {
   );
 }
 
+// POS-first greeting: no protected screen may render before the welcome
+// screen has been seen, so a deep link, a browser restore or a second tab
+// can't skip it. /welcome is exempt or it would redirect to itself.
+function posFirstRedirect(pathname: string, userId: string): string | null {
+  return pathname !== '/welcome' && !hasSeenWelcome(userId) ? '/welcome' : null;
+}
+
 function RequireRole({
   roles,
   children,
@@ -75,9 +83,12 @@ function RequireRole({
   children: JSX.Element;
 }) {
   const { loading, authUserId, profile } = useAuth();
+  const location = useLocation();
 
   if (loading) return <LoadingScreen />;
   if (!authUserId || !profile) return <Navigate to="/login" replace />;
+  const greeted = posFirstRedirect(location.pathname, profile.id);
+  if (greeted) return <Navigate to={greeted} replace />;
   if (!roles.includes(profile.role as 'manager' | 'owner' | 'staff')) {
     return <Navigate to="/" replace />;
   }
@@ -88,6 +99,10 @@ function HomeRedirect() {
   const { loading, profile } = useAuth();
   if (loading) return <LoadingScreen />;
   if (!profile) return <Navigate to="/login" replace />;
+  // The POS-first greeting owns this decision for every account — owner
+  // signups and freshly provisioned staff/manager alike — so landing after
+  // signup and landing after a first sign-in resolve identically.
+  if (!hasSeenWelcome(profile.id)) return <Navigate to="/welcome" replace />;
   if (profile.role === 'staff') return <Navigate to="/staff" replace />;
   return <Navigate to={profile.role === 'owner' ? '/owner' : '/manager'} replace />;
 }
@@ -96,8 +111,11 @@ function HomeRedirect() {
 // a notice pointing at the point-of-sale app rather than a blank redirect.
 function RequireStaff({ children }: { children: JSX.Element }) {
   const { loading, authUserId, profile } = useAuth();
+  const location = useLocation();
   if (loading) return <LoadingScreen />;
   if (!authUserId || !profile) return <Navigate to="/login" replace />;
+  const greeted = posFirstRedirect(location.pathname, profile.id);
+  if (greeted) return <Navigate to={greeted} replace />;
   if (profile.role !== 'staff') return <Navigate to="/" replace />;
   return children;
 }
@@ -127,6 +145,14 @@ export default function App() {
           />
           <Route path="/" element={<HomeRedirect />} />
           <Route
+            path="/welcome"
+            element={
+              <RequireRole roles={['staff', 'manager', 'owner']}>
+                <Welcome />
+              </RequireRole>
+            }
+          />
+          <Route
             path="/staff"
             element={
               <RequireStaff>
@@ -149,14 +175,6 @@ export default function App() {
             element={
               <RequireRole roles={['manager', 'owner']}>
                 <Pos />
-              </RequireRole>
-            }
-          />
-          <Route
-            path="/manager/inventory"
-            element={
-              <RequireRole roles={['manager', 'owner']}>
-                <StockIntake />
               </RequireRole>
             }
           />

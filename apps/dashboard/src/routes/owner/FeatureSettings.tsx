@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import BackButton from '../../components/BackButton';
 import DashboardLayout from '../../components/DashboardLayout';
+import PageHeader from '../../components/PageHeader';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   ALL_FEATURES,
   SECTION_LABELS,
@@ -51,7 +52,9 @@ function FeatureToggle({
 }
 
 export default function FeatureSettings() {
-  const [config, setConfig] = useState<FeatureConfig>(() => loadFeatureConfig('owner'));
+  const { authUserId, profile } = useAuth();
+  const userId = profile?.id ?? authUserId ?? undefined;
+  const [config, setConfig] = useState<FeatureConfig>(() => loadFeatureConfig('owner', userId));
   const [saved, setSaved] = useState(false);
 
   function handleToggle(key: FeatureKey, val: boolean) {
@@ -60,7 +63,7 @@ export default function FeatureSettings() {
   }
 
   function handleSave() {
-    saveFeatureConfig(config);
+    saveFeatureConfig(config, userId);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -68,7 +71,7 @@ export default function FeatureSettings() {
   function handleReset() {
     const defaults = getDefaultConfig('owner');
     setConfig(defaults);
-    saveFeatureConfig(defaults);
+    saveFeatureConfig(defaults, userId);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -78,25 +81,22 @@ export default function FeatureSettings() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div>
-        <div>
-          <h1 className="page-title">Feature Settings</h1>
-          <p className="page-sub">
-            Enable or disable features across the platform. Every feature is optional and customizable.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={handleReset} className="btn btn-outline">
-            Reset defaults
-          </button>
-          <button onClick={handleSave} className="btn btn-primary">
-            {saved ? '✓ Saved' : 'Save changes'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Feature Settings"
+        subtitle="Turn features on or off. Changes apply to this account immediately."
+        right={
+          <>
+            <button onClick={handleReset} className="btn btn-outline">
+              Reset defaults
+            </button>
+            <button onClick={handleSave} className="btn btn-primary">
+              {saved ? '✓ Saved' : 'Save changes'}
+            </button>
+          </>
+        }
+      />
 
-      <div className="max-w-3xl space-y-8">
+      <div className="max-w-3xl space-y-8 mt-8">
         {sections.map((section) => {
           const features = ALL_FEATURES.filter((f) => f.section === section);
           if (features.length === 0) return null;

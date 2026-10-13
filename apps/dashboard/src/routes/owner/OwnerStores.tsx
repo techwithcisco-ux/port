@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import PageHeader from '../../components/PageHeader';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, InventoryAllocation, Product, Sale } from '@branchport/shared';
@@ -147,12 +148,10 @@ export default function OwnerStores() {
 
   return (
     <DashboardLayout>
-      <div className="mb-3">
-        <h1 className="page-title">Stores</h1>
-        <p className="page-sub mt-1">All your branches — tap to view, edit, or add a new one.</p>
-      </div>
-
-
+      <PageHeader
+        title="Stores"
+        subtitle="All your branches — tap to view, edit, or add a new one."
+      />
 
       {/* ── Branch cards + Add Store card ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
@@ -387,7 +386,7 @@ export default function OwnerStores() {
           <span className="text-2xl block mb-2">📋</span>
           <span className="text-sm font-medium text-gray-900">Stock Balance</span>
         </Link>
-        <Link to="/manager/inventory" className="bg-white border border-gray-200 rounded-2xl p-4 text-center hover:border-gray-900 transition-all">
+        <Link to="/manager/intake" className="bg-white border border-gray-200 rounded-2xl p-4 text-center hover:border-gray-900 transition-all">
           <span className="text-2xl block mb-2">📥</span>
           <span className="text-sm font-medium text-gray-900">Add Stock</span>
         </Link>

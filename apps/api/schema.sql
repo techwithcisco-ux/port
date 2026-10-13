@@ -299,12 +299,18 @@ CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(prod
 CREATE INDEX IF NOT EXISTS idx_suppliers_business ON suppliers(business_id);
 CREATE INDEX IF NOT EXISTS idx_intake_business ON inventory_intake(business_id);
 CREATE INDEX IF NOT EXISTS idx_allocations_branch ON inventory_allocations(branch_id);
+CREATE INDEX IF NOT EXISTS idx_allocations_product ON inventory_allocations(product_id);
 CREATE INDEX IF NOT EXISTS idx_sales_branch ON sales(branch_id);
 CREATE INDEX IF NOT EXISTS idx_sales_sold_at ON sales(sold_at);
+-- Composite: every till/dashboard stock query filters branch_id then ranges sold_at.
+CREATE INDEX IF NOT EXISTS idx_sales_branch_sold_at ON sales(branch_id, sold_at);
 CREATE INDEX IF NOT EXISTS idx_audit_business ON audit_events(business_id);
 CREATE INDEX IF NOT EXISTS idx_audit_occurred ON audit_events(occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_query_log_created ON query_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_invoices_branch ON invoices(branch_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_created ON invoices(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_debtors_invoice ON debtors(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_intake_product ON inventory_intake(product_id);
 
 -- ── Customer waitlist / shop-link ordering ─────────────────────
 -- A rep creates an invite for a customer phone number; the customer opens
@@ -342,6 +348,20 @@ CREATE INDEX IF NOT EXISTS idx_waitlist_invites_business ON waitlist_invites(bus
 CREATE INDEX IF NOT EXISTS idx_waitlist_invites_token ON waitlist_invites(token);
 CREATE INDEX IF NOT EXISTS idx_waitlist_orders_business ON waitlist_orders(business_id);
 CREATE INDEX IF NOT EXISTS idx_waitlist_orders_invite ON waitlist_orders(invite_id);
+
+-- ── Shop views (which customer link opened which shop, when) ───
+-- Written server-side on every public catalog fetch — no client beacon
+-- needed. No IP/user-agent stored: the invite already identifies the
+-- customer phone. Feeds the market Activity study hub.
+CREATE TABLE IF NOT EXISTS shop_views (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  invite_id uuid NOT NULL REFERENCES waitlist_invites(id) ON DELETE CASCADE,
+  business_id uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  viewed_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_shop_views_business ON shop_views(business_id);
+CREATE INDEX IF NOT EXISTS idx_shop_views_viewed ON shop_views(viewed_at DESC);
 
 -- ── Professional auth (access + refresh rotation, lockout, reset) ──
 -- Short-lived access JWTs are stateless; refresh tokens are opaque and

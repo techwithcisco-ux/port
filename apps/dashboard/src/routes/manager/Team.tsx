@@ -1,6 +1,7 @@
 import { useEffect, useState, FormEvent } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
+import { ListSkeleton } from '../../components/ListState';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, AppUser } from '@branchport/shared';
@@ -42,14 +43,19 @@ export default function Team() {
 
   // Delete confirmation
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function refresh() {
-    const [b, u] = await Promise.all([
-      api.from('branches').select('*'),
-      api.from('users').select('*').eq('role', 'staff'),
-    ]);
-    setBranches((b.data as Branch[]) ?? []);
-    setStaff((u.data as AppUser[]) ?? []);
+    try {
+      const [b, u] = await Promise.all([
+        api.from('branches').select('*'),
+        api.from('users').select('*').eq('role', 'staff'),
+      ]);
+      setBranches((b.data as Branch[]) ?? []);
+      setStaff((u.data as AppUser[]) ?? []);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -253,13 +259,10 @@ export default function Team() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <h1 className="page-title mb-1">Staff management</h1>
-      <p className="page-sub mb-3">
-        Create staff accounts with a phone number + temp password. After creating
-        an account, send the activation link — the staff member taps it to
-        activate their POS access, then signs in with phone + password.
-      </p>
+      <PageHeader
+        title="Staff management"
+        subtitle="Create staff accounts with a phone number + temp password. After creating an account, send the activation link — the staff member taps it to activate their POS access, then signs in with phone + password."
+      />
 
       <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
         <form onSubmit={handleCreateStaff} className="card p-4 space-y-2 h-fit">
@@ -334,7 +337,9 @@ export default function Team() {
         {/* ── Existing staff list ─────────────────── */}
         <div className="card overflow-hidden h-fit">
           <p className="card-header">Staff accounts ({staff.length})</p>
-          {staff.length === 0 ? (
+          {loading ? (
+            <div className="p-4"><ListSkeleton rows={3} /></div>
+          ) : staff.length === 0 ? (
             <p className="p-4 text-gray-500 text-sm">No staff accounts yet. Create one to get started.</p>
           ) : (
             <ul className="divide-y">

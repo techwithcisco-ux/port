@@ -75,7 +75,7 @@ export function signPlatformToken() {
   return jwt.sign(
     { sub: 'market', role: 'platform', type: 'platform' },
     JWT_SECRET,
-    { expiresIn: '12h', issuer: 'branchport-api' },
+    { expiresIn: '12h', issuer: 'branchport-api', audience: 'branchport-client' },
   );
 }
 
@@ -251,7 +251,10 @@ export function authRequired(req, res, next) {
       issuer: 'branchport-api',
       audience: 'branchport-client',
     });
-    if (payload.type !== 'access') return res.status(401).json({ error: 'Invalid token type' });
+    // Platform tokens pass here; requireRole('platform') gates them downstream.
+    if (payload.type !== 'access' && payload.type !== 'platform') {
+      return res.status(401).json({ error: 'Invalid token type' });
+    }
     req.auth = payload;
     next();
   } catch {

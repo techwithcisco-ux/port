@@ -12,6 +12,15 @@ export function isImageSizeOk(b64: string): boolean {
   return b64.length <= MAX_PRODUCT_IMAGE_B64_CHARS;
 }
 
+// products.image holds either a bare base64 JPEG (camera uploads — the
+// historical format) or a full data URL (seeded SVG tiles, future formats).
+// Every <img> must go through this so both shapes render.
+export function productImageSrc(image?: string | null): string | undefined {
+  if (!image) return undefined;
+  if (image.startsWith('data:')) return image;
+  return `data:image/jpeg;base64,${image}`;
+}
+
 // True when a product insert/update failed only because the database has
 // no products.image column. Callers use this to retry the write WITHOUT
 // the photo instead of losing the product.

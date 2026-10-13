@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/live', label: 'Live Market', hint: 'Ticker board', icon: '📈' },
   { to: '/analytics', label: 'Usage Analytics', hint: 'Growth graphs', icon: '⏱' },
   { to: '/reports', label: 'Reports', hint: 'CSV exports', icon: '📄' },
+  { to: '/activity', label: 'Activity', hint: 'Every user, item, time', icon: '🧭' },
 ];
 
 interface Pos { x: number; y: number; }

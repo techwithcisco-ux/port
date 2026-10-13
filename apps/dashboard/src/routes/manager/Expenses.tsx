@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -186,19 +186,18 @@ export default function Expenses() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div>
-        <div>
-          <h1 className="page-title">Expenses</h1>
-          <p className="page-sub">Track daily susu, tax, rent, transport and other recurring costs.</p>
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="btn btn-primary"
-        >
-          {showForm ? 'Cancel' : '+ New expense'}
-        </button>
-      </div>
+      <PageHeader
+        title="Expenses"
+        subtitle="Track daily susu, tax, rent, transport and other recurring costs."
+        right={
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="btn btn-primary"
+          >
+            {showForm ? 'Cancel' : '+ New expense'}
+          </button>
+        }
+      />
 
       {status && (
         <div className="mb-4 px-4 py-2 bg-green-50 text-green-800 rounded-lg text-sm">{status}</div>

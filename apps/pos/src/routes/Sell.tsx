@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link, useLocation } from 'react-router-dom';
 import { db } from '../lib/db';
-import { pushQueuedSales, getLastSyncError } from '../lib/sync';
+import { pushQueuedSales, pushLedger } from '../lib/sync';
 import { useAuth } from '../contexts/AuthContext';
 import type { Product, ProductVariant, QueuedSale, Invoice, InvoiceItem, PaymentMode } from '@branchport/shared';
 import {
@@ -11,8 +11,12 @@ import {
   saleBaseUnits,
   isSyntheticVariant,
   nowISO,
+  loadFeatureConfig,
+  isFeatureEnabled,
+  productImageSrc,
 } from '@branchport/shared';
-import { api } from '../lib/api';
+import SyncIndicator from '../components/SyncIndicator';
+import Calculator from '../components/Calculator';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -22,12 +26,13 @@ interface CartLine {
   variant: ProductVariant;
   qty: number;
   cutPrice: number | null; // discounted unit price (null = no discount)
-  isFreeDiscount: boolean; // free discount = cutPrice × qty replaces original
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 let nextLineKey = 1;
+
+const EMPTY_PRODUCTS: Product[] = [];
 
 function ghs(n: number): string {
   return `GHS ${n.toFixed(2)}`;
@@ -48,7 +53,11 @@ function nextInvoiceNumber(): string {
 
 export default function Sell() {
   const { profile } = useAuth();
-  const products = useLiveQuery(() => db.products.toArray(), []) ?? [];
+  // `undefined` while Dexie is still resolving — used to tell "loading"
+  // apart from "genuinely empty", otherwise the till flashes
+  // "No products loaded" on every cold start.
+  const productsQuery = useLiveQuery(() => db.products.toArray(), []);
+  const products = productsQuery ?? EMPTY_PRODUCTS;
   const allocations = useLiveQuery(
     () => (profile ? db.allocations.where('branch_id').equals(profile.branch_id!).toArray() : []),
     [profile]
@@ -61,15 +70,6 @@ export default function Sell() {
     () => (profile ? db.invoices.where('branch_id').equals(profile.branch_id!).toArray() : []),
     [profile]
   ) ?? [];
-  // Unsynced sales queue — shown as a banner so a silent sync failure
-  // (e.g. RLS rejection on phone-only sign-in) can never hide.
-  const queuedCount = useLiveQuery(() => db.sales.filter((s) => !s.synced).count(), []) ?? 0;
-  const [syncError, setSyncError] = useState<string | null>(null);
-  useEffect(() => {
-    const t = setInterval(() => setSyncError(getLastSyncError()), 5000);
-    setSyncError(getLastSyncError());
-    return () => clearInterval(t);
-  }, []);
 
   const location = useLocation();
   const resumeInvoiceId = (location.state as { resumeInvoiceId?: string } | null)?.resumeInvoiceId;
@@ -80,7 +80,6 @@ export default function Sell() {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [qty, setQty] = useState('1');
   const [cutPrice, setCutPrice] = useState('');
-  const [isFreeDiscount, setIsFreeDiscount] = useState(false);
 
   // ── Cart ──
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -92,8 +91,12 @@ export default function Sell() {
   const [confirming, setConfirming] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  // `created_at` of the invoice being resumed — sale rows written for it are
+  // the ones carrying this exact `sold_at`, which is how completeOrder
+  // swaps them instead of appending duplicates.
+  const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
   const [showCustomer, setShowCustomer] = useState(false);
-  const [online, setOnline] = useState(true);
+  const [showCalc, setShowCalc] = useState(false);
 
   useEffect(() => {
     if (feedback) {
@@ -101,10 +104,6 @@ export default function Sell() {
       return () => clearTimeout(t);
     }
   }, [feedback]);
-
-  useEffect(() => {
-    setOnline(navigator.onLine);
-  }, []);
 
   // Resume an invoice from InvoiceHistory navigation
   useEffect(() => {
@@ -142,6 +141,13 @@ export default function Sell() {
   }, 0);
   const grandTotal = subtotal;
 
+  // How many of each product are already in the order (tile badge).
+  const cartQtyByProduct = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const l of cart) m[l.product.id] = (m[l.product.id] ?? 0) + l.qty;
+    return m;
+  }, [cart]);
+
   // ── Product selection ──
   function selectProduct(p: Product) {
     setSelectedProduct(p);
@@ -152,20 +158,53 @@ export default function Sell() {
 
   function addSelected() {
     if (!selectedProduct || !selectedVariant) return;
-    const q = Math.max(1, Math.round(Number(qty) || 1));
-    const cp = cutPrice.trim() ? Math.max(0, Number(cutPrice)) : null;
-    setCart((c) => [...c, { key: nextLineKey++, product: selectedProduct, variant: selectedVariant, qty: q, cutPrice: cp, isFreeDiscount: cp != null ? isFreeDiscount : false }]);
-    const label = cp != null ? ` (cut price ${ghs(cp)})` : '';
+    const available = stockFor(selectedProduct);
+    if (available <= 0) {
+      setFeedback(`${selectedProduct.name} is out of stock.`);
+      return;
+    }
+    let q = Math.max(1, Math.round(Number(qty) || 1));
+    if (q > available) {
+      q = available;
+      setQty(String(q));
+    }
+    const original = Number(selectedVariant.price);
+    let cp = cutPrice.trim() ? Number(cutPrice) : NaN;
+    if (!isFinite(cp) || cp <= 0) cp = NaN;
+    // A "discount" above the list price produces negative savings in the
+    // receipt, so clamp it back to the original price.
+    if (isFinite(cp) && cp >= original) cp = NaN;
+    const cut = isFinite(cp) ? Math.round(cp * 100) / 100 : null;
+    setCart((c) => [...c, { key: nextLineKey++, product: selectedProduct, variant: selectedVariant, qty: q, cutPrice: cut }]);
+    const label = cut != null ? ` (cut price ${ghs(cut)})` : '';
     setFeedback(`Added ${selectedVariant.name} of ${selectedProduct.name}${label}`);
     setSelectedProduct(null);
     setSelectedVariant(null);
     setQty('1');
     setCutPrice('');
-    setIsFreeDiscount(false);
   }
 
   function setLineQty(key: number, q: number) {
     setCart((c) => c.map((l) => (l.key === key ? { ...l, qty: Math.max(1, q) } : l)));
+  }
+
+  // One tap from the tile: drop 1 of the default (retail) variant into the
+  // order. The tile's own + button calls this repeatedly to add more.
+  function quickAdd(p: Product) {
+    const variant = getProductVariants(p)[0];
+    if (!variant) return;
+    const available = stockFor(p);
+    const already = cart.reduce((s, l) => (l.product.id === p.id ? s + l.qty : s), 0);
+    if (available <= 0) {
+      setFeedback(`${p.name} is out of stock.`);
+      return;
+    }
+    if (already >= available) {
+      setFeedback(`Only ${available} × ${p.name} in stock.`);
+      return;
+    }
+    setCart((c) => [...c, { key: nextLineKey++, product: p, variant, qty: 1, cutPrice: null }]);
+    setFeedback(`Added 1 × ${p.name}`);
   }
 
   function removeLine(key: number) {
@@ -205,117 +244,173 @@ export default function Sell() {
     return s + l.qty * (Number(l.variant.price) - l.cutPrice);
   }, 0);
   const isOwnerOrManager = profile?.role === 'owner' || profile?.role === 'manager';
+  const featureConfig = useMemo(
+    () => loadFeatureConfig((profile?.role as 'owner' | 'manager' | 'staff') ?? 'staff', profile?.id),
+    [profile?.role, profile?.id],
+  );
+  const showProfit = isOwnerOrManager && isFeatureEnabled(featureConfig, 'pos_profit_display');
+  const showCalculator = isFeatureEnabled(featureConfig, 'posCalculator');
 
   // ── Complete sale ──
   async function completeOrder() {
     if (cart.length === 0 || !profile?.branch_id || confirming) return;
     setConfirming(true);
+    try {
+      const now = nowISO();
+      const items = buildInvoiceItems();
+      const paid = paymentMode === 'full' ? grandTotal : 0;
+      const owed = grandTotal - paid;
+      const invoiceStatus = owed <= 0 ? 'completed' : 'pending';
 
-    const now = nowISO();
-    const items = buildInvoiceItems();
-    const paid = paymentMode === 'full' ? grandTotal : 0;
-    const owed = grandTotal - paid;
-    const invoiceStatus = owed <= 0 ? 'completed' : 'pending';
+      // Write individual sale rows — use cut price if set
+      let rows: QueuedSale[] = cart.map((l) => {
+        const originalPrice = Number(l.variant.price);
+        const effectivePrice = l.cutPrice != null ? l.cutPrice : originalPrice;
+        return {
+          id: crypto.randomUUID(),
+          branch_id: profile.branch_id!,
+          product_id: l.product.id,
+          variant_id: isSyntheticVariant(l.variant) ? null : l.variant.id,
+          unit_type: variantUnitType(l.product, l.variant),
+          quantity: l.qty,
+          unit_price: effectivePrice,
+          total_price: Math.round(l.qty * effectivePrice * 100) / 100,
+          sold_by: profile.id,
+          sold_at: now,
+          client_reported_at: now,
+          price_flagged: false,
+          customer_name: customerName.trim() || null,
+          customer_phone: customerPhone.trim() || null,
+          synced: false,
+          cut_price: l.cutPrice,
+          is_discounted: l.cutPrice != null,
+        };
+      });
 
-    // Write individual sale rows — use cut price if set
-    const rows: QueuedSale[] = cart.map((l) => {
-      const originalPrice = Number(l.variant.price);
-      const effectivePrice = l.cutPrice != null ? l.cutPrice : originalPrice;
-      return {
-        id: crypto.randomUUID(),
+      // Resuming an invoice: its sale rows were already written the first
+      // time it was completed. Swap them out — re-using their ids so a row
+      // already pushed to the server stays a harmless duplicate-key no-op —
+      // instead of appending a second copy that double-counts stock.
+      const previous = editingInvoiceId && editingCreatedAt
+        ? await db.sales
+            .filter((s) => s.branch_id === profile.branch_id && s.sold_at === editingCreatedAt)
+            .toArray()
+        : [];
+      if (previous.length > 0) {
+        const idsByKey = new Map<string, string[]>();
+        for (const p of previous) {
+          const key = `${p.product_id}::${p.variant_id ?? ''}`;
+          const list = idsByKey.get(key);
+          if (list) list.push(p.id);
+          else idsByKey.set(key, [p.id]);
+        }
+        rows = rows.map((r) => {
+          const list = idsByKey.get(`${r.product_id}::${r.variant_id ?? ''}`);
+          const reused = list?.shift();
+          return reused ? { ...r, id: reused } : r;
+        });
+        await db.sales.bulkDelete(previous.map((p) => p.id));
+      }
+
+      await db.sales.bulkAdd(rows);
+
+      // Build notes with discount/credit info for audit trail
+      const hasDiscounts = items.some((it) => it.is_discounted);
+      const notesParts: string[] = [];
+      if (hasDiscounts) {
+        const discountLines = items
+          .filter((it) => it.is_discounted)
+          .map((it) => `${it.product_name}: ${ghs(it.original_unit_price!)} → ${ghs(it.unit_price)} each`);
+        notesParts.push(`Discount applied: ${discountLines.join('; ')}`);
+      }
+      if (paymentMode === 'credit') {
+        notesParts.push(`Credit sale — ${ghs(owed)} owed by ${customerName.trim() || 'walk-in'}`);
+      }
+
+      // Save invoice record (keep the original created_at when editing)
+      const originalCreated =
+        editingInvoiceId && invoices.find((i) => i.id === editingInvoiceId)?.created_at;
+      const invoice: Invoice = {
+        id: editingInvoiceId ?? crypto.randomUUID(),
+        invoice_number: editingInvoiceId
+          ? (invoices.find((i) => i.id === editingInvoiceId)?.invoice_number ?? nextInvoiceNumber())
+          : nextInvoiceNumber(),
         branch_id: profile.branch_id!,
-        product_id: l.product.id,
-        variant_id: isSyntheticVariant(l.variant) ? null : l.variant.id,
-        unit_type: variantUnitType(l.product, l.variant),
-        quantity: l.qty,
-        unit_price: effectivePrice,
-        total_price: Math.round(l.qty * effectivePrice * 100) / 100,
-        sold_by: profile.id,
-        sold_at: now,
-        client_reported_at: now,
-        price_flagged: false,
+        created_by: profile.id,
         customer_name: customerName.trim() || null,
         customer_phone: customerPhone.trim() || null,
-        synced: false,
-        cut_price: l.cutPrice,
-        is_discounted: l.cutPrice != null,
-      };
-    });
-
-    await db.sales.bulkAdd(rows);
-
-    // Build notes with discount/credit info for audit trail
-    const hasDiscounts = items.some((it) => it.is_discounted);
-    const notesParts: string[] = [];
-    if (hasDiscounts) {
-      const discountLines = items
-        .filter((it) => it.is_discounted)
-        .map((it) => `${it.product_name}: ${ghs(it.original_unit_price!)} → ${ghs(it.unit_price)} each`);
-      notesParts.push(`Discount applied: ${discountLines.join('; ')}`);
-    }
-    if (paymentMode === 'credit') {
-      notesParts.push(`Credit sale — ${ghs(owed)} owed by ${customerName.trim() || 'walk-in'}`);
-    }
-
-    // Save invoice record
-    const invoice: Invoice = {
-      id: editingInvoiceId ?? crypto.randomUUID(),
-      invoice_number: editingInvoiceId
-        ? (invoices.find((i) => i.id === editingInvoiceId)?.invoice_number ?? nextInvoiceNumber())
-        : nextInvoiceNumber(),
-      branch_id: profile.branch_id!,
-      created_by: profile.id,
-      customer_name: customerName.trim() || null,
-      customer_phone: customerPhone.trim() || null,
-      items,
-      subtotal: Math.round(subtotal * 100) / 100,
-      tax_rate: 0,
-      tax_amount: 0,
-      grand_total: Math.round(grandTotal * 100) / 100,
-      payment_mode: paymentMode,
-      amount_paid: Math.round(paid * 100) / 100,
-      amount_owed: Math.round(owed * 100) / 100,
-      status: invoiceStatus,
-      notes: notesParts.join(' | '),
-      created_at: now,
-      updated_at: now,
-    };
-
-    await db.invoices.put(invoice);
-    // The API writes the invoice server-side and audits it; a local failure
-    // must never block a completed sale.
-    void Promise.resolve(api.from('invoices').upsert(invoice)).catch(() => {});
-
-    // If credit payment → auto-create a debtor record
-    if (owed > 0) {
-      const debtor = {
-        id: crypto.randomUUID(),
-        business_id: profile.business_id,
-        branch_id: profile.branch_id,
-        customer_name: customerName.trim() || 'Walk-in',
-        customer_phone: customerPhone.trim() || null,
-        invoice_id: invoice.id,
-        original_amount: grandTotal,
-        amount_paid: paid,
-        amount_owed: owed,
-        status: 'pending' as const,
-        notes: `Invoice ${invoice.invoice_number} — credit sale`,
-        created_at: now,
+        items,
+        subtotal: Math.round(subtotal * 100) / 100,
+        tax_rate: 0,
+        tax_amount: 0,
+        grand_total: Math.round(grandTotal * 100) / 100,
+        payment_mode: paymentMode,
+        amount_paid: Math.round(paid * 100) / 100,
+        amount_owed: Math.round(owed * 100) / 100,
+        status: invoiceStatus,
+        notes: notesParts.join(' | '),
+        created_at: originalCreated ?? now,
         updated_at: now,
+        // Local write first (instant UI); sync.ts pushLedger() retries the
+        // server upsert until confirmed — a dropped connection can no longer
+        // strand an invoice as local-only.
+        serverSynced: false,
       };
-      await db.debtors.add(debtor);
-      void Promise.resolve(api.from('debtors').upsert(debtor)).catch(() => {});
-    }
 
-    setFeedback(`Sale complete — ${ghs(grandTotal)}${owed > 0 ? ` (${ghs(owed)} owed)` : ''}`);
-    resetForm();
-    setConfirming(false);
-    void pushQueuedSales();
+      await db.invoices.put(invoice);
+
+      // Credit → debtor. Resuming must settle or update the EXISTING debtor
+      // for this invoice instead of creating a second one.
+      const existingDebtor = editingInvoiceId
+        ? await db.debtors.where('invoice_id').equals(editingInvoiceId).first()
+        : undefined;
+      if (owed > 0) {
+        const debtor = {
+          id: existingDebtor?.id ?? crypto.randomUUID(),
+          business_id: profile.business_id,
+          branch_id: profile.branch_id,
+          customer_name: customerName.trim() || 'Walk-in',
+          customer_phone: customerPhone.trim() || null,
+          invoice_id: invoice.id,
+          original_amount: grandTotal,
+          amount_paid: paid,
+          amount_owed: owed,
+          status: 'pending' as const,
+          notes: `Invoice ${invoice.invoice_number} — credit sale`,
+          created_at: existingDebtor?.created_at ?? now,
+          updated_at: now,
+        };
+        if (existingDebtor) {
+          await db.debtors.update(existingDebtor.id, { ...debtor, id: existingDebtor.id, serverSynced: false });
+        } else {
+          await db.debtors.add({ ...debtor, serverSynced: false });
+        }
+      } else if (existingDebtor) {
+        await db.debtors.update(existingDebtor.id, {
+          amount_paid: grandTotal,
+          amount_owed: 0,
+          status: 'settled',
+          updated_at: now,
+          serverSynced: false,
+        });
+      }
+
+      setFeedback(`Sale complete — ${ghs(grandTotal)}${owed > 0 ? ` (${ghs(owed)} owed)` : ''}`);
+      resetForm();
+      void pushQueuedSales().then(() => pushLedger());
+    } catch (err) {
+      // Without this finally, any thrown write left `confirming` true and
+      // the CTA permanently stuck on "Recording…".
+      setFeedback(`Could not record the sale — ${(err as Error).message}`);
+    } finally {
+      setConfirming(false);
+    }
   }
 
   // ── Resume a pending invoice ──
   function resumeInvoice(inv: Invoice) {
     setEditingInvoiceId(inv.id);
+    setEditingCreatedAt(inv.created_at);
     setCustomerName(inv.customer_name ?? '');
     setCustomerPhone(inv.customer_phone ?? '');
     setPaymentMode(inv.payment_mode ?? 'full');
@@ -333,7 +428,6 @@ export default function Sell() {
           variant,
           qty: item.quantity,
           cutPrice: hasDiscount ? item.unit_price : null,
-          isFreeDiscount: hasDiscount,
         };
       }).filter(Boolean) as CartLine[]
     );
@@ -351,8 +445,8 @@ export default function Sell() {
     setSelectedVariant(null);
     setQty('1');
     setCutPrice('');
-    setIsFreeDiscount(false);
     setEditingInvoiceId(null);
+    setEditingCreatedAt(null);
   }
 
   // ── Pending invoices ──
@@ -367,9 +461,9 @@ export default function Sell() {
           LEFT PANEL — Search + Products
           Mobile: collapses to ~60vh. Desktop: fixed 480px sidebar.
           ══════════════════════════════════════════════════════════════════════ */}
-      <div className="flex flex-col lg:w-[480px] xl:w-[520px] border-b lg:border-b-0 lg:border-r border-gray-200 bg-white overflow-hidden lg:max-h-none max-h-[60vh] min-h-0">
+      <div className="flex flex-col lg:w-[480px] xl:w-[520px] border-b lg:border-b-0 lg:border-r border-line bg-white overflow-hidden lg:max-h-none max-h-[60vh] min-h-0">
         {/* Header — simplified: just 2 nav buttons */}
-        <header className="px-4 pt-4 pb-3 border-b border-gray-100 safe-top">
+        <header className="px-4 pt-4 pb-3 border-b border-line safe-top">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h1 className="text-lg font-semibold text-gray-900">Sell</h1>
@@ -378,18 +472,29 @@ export default function Sell() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <span className={online ? 'text-green-500' : 'text-red-500 text-sm font-medium'}>
-                {online ? 'Online' : 'Offline'}
-              </span>
+              <SyncIndicator compact />
+              {showCalculator && (
+                <button
+                  type="button"
+                  onClick={() => setShowCalc(true)}
+                  aria-label="Open calculator"
+                  className="grid h-10 w-10 place-items-center rounded-xl border border-gray-200 bg-white text-gray-700 active:scale-95"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="2" width="16" height="20" rx="2" />
+                    <path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h4" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
           {feedback && (
-            <div className="bg-green-50 text-green-800 rounded-xl px-4 py-3 text-sm mb-3 font-medium">{feedback}</div>
-          )}
-          {queuedCount > 0 && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3 text-sm mb-3">
-              <p className="font-medium">⚠ {queuedCount} sale{queuedCount === 1 ? '' : 's'} on this device only — not yet synced.</p>
-              <p className="text-xs mt-1">{syncError ?? 'Waiting for connection…'} </p>
+            <div
+              role="status"
+              aria-live="polite"
+              className="bg-green-50 text-green-800 rounded-xl px-4 py-3 text-sm mb-3 font-medium"
+            >
+              {feedback}
             </div>
           )}
 
@@ -398,13 +503,15 @@ export default function Sell() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products…"
-              className="w-full border border-gray-200 rounded-xl px-4 py-4 text-base bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white"
+              placeholder="Search by name (optional)…"
+              aria-label="Search products"
+              className="w-full border border-gray-200 rounded-xl pl-4 pr-12 py-4 text-base bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white"
               inputMode="search"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
+                aria-label="Clear search"
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xl leading-none min-h-[44px] min-w-[44px] flex items-center justify-center"
               >
                 ×
@@ -419,12 +526,22 @@ export default function Sell() {
           {selectedProduct && (
             <div className="mb-4 bg-gray-50 border-2 border-gray-900 rounded-2xl p-4">
               <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="font-semibold text-base">{selectedProduct.name}</p>
-                  <p className="text-sm text-gray-500">{stockFor(selectedProduct)} left</p>
+                <div className="flex items-center gap-3">
+                  {selectedProduct.image && (
+                    <img
+                      src={productImageSrc(selectedProduct.image)}
+                      alt=""
+                      className="h-12 w-12 rounded-xl object-cover border border-gray-200"
+                    />
+                  )}
+                  <div>
+                    <p className="font-semibold text-base">{selectedProduct.name}</p>
+                    <p className="text-sm text-gray-500">{stockFor(selectedProduct)} left</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => { setSelectedProduct(null); setSelectedVariant(null); }}
+                  aria-label="Close product"
                   className="text-gray-400 hover:text-gray-700 text-xl leading-none min-h-[44px] min-w-[44px] flex items-center justify-center"
                 >
                   ×
@@ -439,7 +556,7 @@ export default function Sell() {
                     onClick={() => setSelectedVariant(v)}
                     className={`px-4 py-3 rounded-xl text-sm font-medium min-h-[44px] ${
                       selectedVariant?.id === v.id
-                        ? 'bg-gray-900 text-white'
+                        ? 'bg-ghana-green text-white'
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                     }`}
                   >
@@ -452,6 +569,7 @@ export default function Sell() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setQty(String(Math.max(1, (Number(qty) || 1) - 1)))}
+                  aria-label="Decrease quantity"
                   className="h-12 w-12 rounded-xl bg-gray-200 text-gray-700 text-xl font-medium flex items-center justify-center"
                 >
                   −
@@ -459,10 +577,12 @@ export default function Sell() {
                 <input
                   type="number" min="1" inputMode="numeric" value={qty}
                   onChange={(e) => setQty(e.target.value)}
+                  aria-label="Quantity"
                   className="flex-1 text-center text-xl font-semibold border border-gray-200 rounded-xl py-2.5 bg-white focus:outline-none focus:border-gray-900"
                 />
                 <button
                   onClick={() => setQty(String((Number(qty) || 1) + 1))}
+                  aria-label="Increase quantity"
                   className="h-12 w-12 rounded-xl bg-gray-200 text-gray-700 text-xl font-medium flex items-center justify-center"
                 >
                   +
@@ -477,8 +597,8 @@ export default function Sell() {
                       type="checkbox"
                       checked={cutPrice.trim() !== ''}
                       onChange={(e) => {
-                        if (!e.target.checked) { setCutPrice(''); setIsFreeDiscount(false); }
-                        else { setCutPrice(selectedVariant ? String(selectedVariant.price) : ''); }
+                        if (!e.target.checked) setCutPrice('');
+                        else setCutPrice(selectedVariant ? String(selectedVariant.price) : '');
                       }}
                       className="h-5 w-5 rounded border-gray-300"
                     />
@@ -489,87 +609,127 @@ export default function Sell() {
                   <>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500">Original: <span className="line-through">{ghs(Number(selectedVariant?.price))}</span></span>
-                      <span className="text-xs text-green-600 font-medium">You save: {ghs(Number(selectedVariant?.price) - Number(cutPrice))}</span>
+                      <span className="text-xs text-green-600 font-medium">
+                        You save: {ghs(Math.max(Number(selectedVariant?.price) - Number(cutPrice), 0))}
+                      </span>
                     </div>
                     <input
                       type="number"
-                      min="0"
+                      min="0.01"
+                      max={selectedVariant ? Number(selectedVariant.price) : undefined}
                       step="0.01"
                       inputMode="decimal"
                       value={cutPrice}
                       onChange={(e) => setCutPrice(e.target.value)}
                       placeholder="New unit price"
+                      aria-label="Cut unit price"
                       className="w-full border-2 border-green-400 rounded-xl px-4 py-3 text-base bg-green-50 focus:outline-none focus:border-green-600 font-semibold text-green-800"
                     />
-                    <label className="flex items-center gap-2 cursor-pointer bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                      <input
-                        type="checkbox"
-                        checked={isFreeDiscount}
-                        onChange={(e) => setIsFreeDiscount(e.target.checked)}
-                        className="h-5 w-5 rounded border-amber-300"
-                      />
-                      <span className="text-sm font-medium text-amber-700">🏷️ Free Discount — use cut price × qty</span>
-                    </label>
+                    {Number(cutPrice) >= Number(selectedVariant?.price) && (
+                      <p className="text-xs text-amber-700">
+                        A cut price must be lower than {ghs(Number(selectedVariant?.price))} — it will be ignored.
+                      </p>
+                    )}
                   </>
                 )}
               </div>
 
               <button
                 onClick={addSelected}
-                disabled={!selectedVariant}
-                className="h-12 px-6 rounded-xl bg-gray-900 text-white text-base font-medium disabled:opacity-40 mt-3 w-full"
+                disabled={!selectedVariant || stockFor(selectedProduct) <= 0}
+                className="h-12 px-6 rounded-xl bg-ghana-green text-white text-base font-semibold disabled:opacity-40 mt-3 w-full hover:bg-[#007A4A]"
               >
-                Add to order
+                {stockFor(selectedProduct) <= 0 ? 'Out of stock' : 'Add to order'}
               </button>
             </div>
           )}
 
-          {/* Product grid — bigger cards for easy tapping */}
-          {filtered.length === 0 ? (
+          {/* Product grid — ALL items visible, photo tiles, tap + to sell.
+              Columns adapt to the phone: 2 up on small screens, 3 from
+              mid-width, 4 on wide panels. */}
+          {productsQuery === undefined ? (
+            <div className="grid grid-cols-2 min-[430px]:grid-cols-3 xl:grid-cols-4 gap-2.5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="rounded-2xl border border-gray-200 bg-white overflow-hidden animate-pulse">
+                  <div className="w-full aspect-square bg-gray-100" />
+                  <div className="px-3 py-2.5 space-y-2">
+                    <div className="h-3 w-3/4 rounded bg-gray-100" />
+                    <div className="h-3 w-1/2 rounded bg-gray-100" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-10">
               {products.length === 0
                 ? 'No products loaded. Connect online once to sync.'
                 : `No match for "${search}"`}
             </p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
-              {filtered.sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
+            <div className="grid grid-cols-2 min-[430px]:grid-cols-3 xl:grid-cols-4 gap-2.5">
+              {[...filtered].sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
                 const active = selectedProduct?.id === p.id;
                 const variants = getProductVariants(p);
                 const base = variants[0];
                 const stock = stockFor(p);
+                const soldOut = stock === 0;
+                const inCart = cartQtyByProduct[p.id] ?? 0;
+                const canAdd = !soldOut && inCart < stock;
                 return (
-                  <button
-                    key={p.id}
-                    onClick={() => selectProduct(p)}
-                    className={`bg-white border-2 rounded-2xl text-left transition-all overflow-hidden ${
-                      active ? 'border-gray-900 shadow-md ring-2 ring-gray-900/10' : 'border-gray-200 hover:border-gray-400 hover:shadow-sm'
-                    }`}
-                  >
-                    {/* Product image or placeholder */}
-                    <div className="w-full aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
-                      {p.image ? (
-                        <img
-                          src={`data:image/jpeg;base64,${p.image}`}
-                          alt={p.name}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span className="text-4xl opacity-40">📦</span>
-                      )}
-                    </div>
-                    {/* Product info below image */}
-                    <div className="px-3 py-2.5">
-                      <p className="font-semibold text-sm truncate">{p.name}</p>
-                      <p className="text-sm text-gray-900 tabular-nums mt-0.5 font-bold">
-                        {ghs(Number(base?.price))}<span className="text-gray-400 font-normal text-xs">/{base?.name}</span>
-                      </p>
-                      <p className={`text-xs mt-1 ${stock === 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-                        {stock === 0 ? 'Out of stock' : `${stock} left`}
-                      </p>
-                    </div>
-                  </button>
+                  <div key={p.id} className="relative">
+                    <button
+                      onClick={() => selectProduct(p)}
+                      aria-label={`${p.name}, ${ghs(Number(base?.price))}, ${soldOut ? 'out of stock' : `${stock} left`}. Tap for options.`}
+                      className={`w-full bg-white border-2 rounded-2xl text-left transition-all overflow-hidden ${
+                        active
+                          ? 'border-gray-900 shadow-md ring-2 ring-gray-900/10'
+                          : soldOut
+                            ? 'border-gray-200 opacity-55'
+                            : 'border-gray-200 hover:border-gray-400 hover:shadow-sm'
+                      }`}
+                    >
+                      {/* Product photo — the main way to recognise an item */}
+                      <div className="w-full aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+                        {p.image ? (
+                          <img
+                            src={productImageSrc(p.image)}
+                            alt={p.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className="text-5xl opacity-40">📦</span>
+                        )}
+                      </div>
+                      {/* Product info below photo (right side kept clear for +) */}
+                      <div className="px-3 py-2.5 pr-12">
+                        <p className="font-semibold text-sm leading-tight line-clamp-2">{p.name}</p>
+                        <p className="text-sm text-gray-900 tabular-nums mt-0.5 font-bold">
+                          {ghs(Number(base?.price))}<span className="text-gray-400 font-normal text-xs">/{base?.name}</span>
+                        </p>
+                        <p className={`text-xs mt-1 ${stock === 0 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                          {stock === 0 ? 'Out of stock' : `${stock} left`}
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* In-order badge */}
+                    {inCart > 0 && (
+                      <span className="absolute top-2 right-2 grid h-7 min-w-[28px] place-items-center rounded-full bg-gray-900 px-1.5 text-xs font-bold text-white shadow">
+                        {inCart}
+                      </span>
+                    )}
+
+                    {/* One-tap add — hit again to add more */}
+                    <button
+                      onClick={() => quickAdd(p)}
+                      disabled={!canAdd}
+                      aria-label={`Add ${p.name} to order`}
+                      className="absolute bottom-3 right-2.5 grid h-11 w-11 place-items-center rounded-full bg-ghana-green text-white text-2xl font-bold leading-none shadow-md transition-transform active:scale-90 disabled:opacity-30 disabled:active:scale-100"
+                    >
+                      +
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -582,7 +742,7 @@ export default function Sell() {
           ══════════════════════════════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 min-h-0">
         {/* Invoice header */}
-        <div className="px-5 pt-4 pb-3 bg-white border-b border-gray-200">
+        <div className="shrink-0 px-5 pt-4 pb-3 bg-white border-b border-gray-200 safe-top">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold text-gray-900">
@@ -602,17 +762,17 @@ export default function Sell() {
           </div>
         </div>
 
-        {/* Customer details — phone auto-filled from profile, name optional */}
-        {!showCustomer && cart.length > 0 && (
+        {/* Customer details — always visible so it is never a hidden extra */}
+        {!showCustomer && (
           <button
             onClick={() => setShowCustomer(true)}
-            className="px-5 py-3 bg-white border-b border-gray-100 text-left text-sm text-gray-500 hover:text-gray-700 min-h-[48px]"
+            className="shrink-0 px-5 py-3 bg-white border-b border-gray-100 text-left text-sm text-gray-600 hover:text-gray-900 min-h-[48px] font-medium"
           >
-            + Add customer
+            + Add customer (name or phone)
           </button>
         )}
         {showCustomer && (
-          <div className="px-5 py-3 bg-white border-b border-gray-100">
+          <div className="shrink-0 px-5 py-3 bg-white border-b border-gray-100">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Customer</p>
               <button
@@ -624,19 +784,26 @@ export default function Sell() {
             </div>
             <div className="grid grid-cols-2 gap-2">
               <input
-                disabled
-                value={profile?.phone ?? ''}
-                placeholder="Phone (auto-filled)"
-                className="border border-gray-200 rounded-xl px-3 py-3 text-sm bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white text-sm"
-                readOnly
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                placeholder="Phone (optional)"
+                inputMode="tel"
+                autoComplete="tel"
+                aria-label="Customer phone number"
+                className="border border-gray-200 rounded-xl px-3 py-3 text-sm bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white"
               />
               <input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Name (optional)"
+                autoComplete="name"
+                aria-label="Customer name"
                 className="border border-gray-200 rounded-xl px-3 py-3 text-sm bg-gray-50 focus:outline-none focus:border-gray-900 focus:bg-white"
               />
             </div>
+            <p className="mt-1.5 text-[11px] text-gray-400">
+              Saved on the sale so the owner can reach the customer about credit.
+            </p>
           </div>
         )}
 
@@ -646,7 +813,7 @@ export default function Sell() {
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
               <p className="text-5xl mb-4">🛒</p>
               <p className="text-base font-medium">No items yet</p>
-              <p className="text-sm mt-1">Tap a product, then Add</p>
+              <p className="text-sm mt-1">Tap the + on an item to sell it</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -673,6 +840,7 @@ export default function Sell() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setLineQty(l.key, l.qty - 1)}
+                      aria-label={`Decrease quantity of ${l.product.name}`}
                       className="h-9 w-9 rounded-lg bg-gray-100 text-gray-600 text-base flex items-center justify-center"
                     >
                       −
@@ -680,6 +848,7 @@ export default function Sell() {
                     <span className="w-8 text-center text-sm font-medium tabular-nums">{l.qty}</span>
                     <button
                       onClick={() => setLineQty(l.key, l.qty + 1)}
+                      aria-label={`Increase quantity of ${l.product.name}`}
                       className="h-9 w-9 rounded-lg bg-gray-100 text-gray-600 text-base flex items-center justify-center"
                     >
                       +
@@ -690,6 +859,7 @@ export default function Sell() {
                   </p>
                   <button
                     onClick={() => removeLine(l.key)}
+                    aria-label={`Remove ${l.product.name} from order`}
                     className="text-gray-300 hover:text-red-600 text-lg leading-none ml-1 min-h-[44px] min-w-[44px] flex items-center justify-center"
                   >
                     ×
@@ -700,15 +870,16 @@ export default function Sell() {
           )}
         </div>
 
-        {/* Totals & actions — simplified */}
-        <div className="bg-white border-t border-gray-200 px-5 py-4 space-y-3 safe-bottom">
+        {/* Totals & actions — simplified. pr-24 keeps every control clear of the
+            assistive-touch circle, which parks in the bottom-right by default. */}
+        <div className="shrink-0 bg-white border-t border-gray-200 pl-5 pr-24 py-4 space-y-3 safe-bottom">
           {/* Payment mode — just Cash or Credit */}
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setPaymentMode('full')}
               className={`py-3 rounded-xl text-sm font-medium transition-colors min-h-[48px] ${
                 paymentMode === 'full'
-                  ? 'bg-gray-900 text-white'
+                  ? 'bg-ghana-green text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -718,7 +889,7 @@ export default function Sell() {
               onClick={() => setPaymentMode('credit')}
               className={`py-3 rounded-xl text-sm font-medium transition-colors min-h-[48px] ${
                 paymentMode === 'credit'
-                  ? 'bg-gray-900 text-white'
+                  ? 'bg-ghana-green text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -754,8 +925,8 @@ export default function Sell() {
             <span className="text-3xl font-bold tabular-nums text-gray-900">{ghs(grandTotal)}</span>
           </div>
 
-          {/* Profit — owner/manager only */}
-          {isOwnerOrManager && cart.length > 0 && (
+          {/* Profit — owner/manager only, when enabled in Feature Settings */}
+          {showProfit && cart.length > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Profit</span>
               <span className={`tabular-nums font-medium ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{ghs(totalProfit)}</span>
@@ -766,7 +937,7 @@ export default function Sell() {
           <button
             onClick={completeOrder}
             disabled={confirming || cart.length === 0}
-            className="w-full py-4 rounded-xl bg-gray-900 text-white text-base font-semibold hover:bg-gray-800 disabled:opacity-50 min-h-[56px]"
+            className="w-full py-4 rounded-xl bg-ghana-green text-white text-base font-semibold hover:bg-[#007A4A] disabled:opacity-50 min-h-[56px]"
           >
             {confirming ? 'Recording…' : paymentMode === 'full' ? '✓ Complete sale' : `📝 Save credit — ${ghs(grandTotal)}`}
           </button>
@@ -774,10 +945,15 @@ export default function Sell() {
 
         {/* Pending invoices — only show if any exist */}
         {pendingInvoices.length > 0 && (
-          <div className="bg-white border-t border-gray-200 px-5 py-3 max-h-[160px] overflow-y-auto">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-              Pending invoices ({pendingInvoices.length})
-            </p>
+          <div className="shrink-0 bg-white border-t border-gray-200 pl-5 pr-24 py-3 max-h-[160px] overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                Pending invoices ({pendingInvoices.length})
+              </p>
+              <Link to="/invoices" className="text-xs font-medium text-gray-600 hover:text-gray-900">
+                View all
+              </Link>
+            </div>
             <div className="space-y-1.5">
               {pendingInvoices.map((inv) => (
                 <button
@@ -802,6 +978,27 @@ export default function Sell() {
           </div>
         )}
       </div>
+
+      {/* Calculator overlay — quick maths without leaving the till */}
+      {showCalc && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Calculator">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCalc(false)} aria-hidden />
+          <div className="relative w-full max-w-sm rounded-3xl bg-white p-4 shadow-2xl">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-900">Calculator</p>
+              <button
+                type="button"
+                onClick={() => setShowCalc(false)}
+                aria-label="Close calculator"
+                className="grid h-9 w-9 place-items-center rounded-lg text-gray-400 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
+            <Calculator />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

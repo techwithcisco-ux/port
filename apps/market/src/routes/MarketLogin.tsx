@@ -41,21 +41,23 @@ export default function MarketLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-10">
+    <div className="min-h-screen bg-ink flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="text-center mb-7">
-          <div className="inline-grid h-14 w-14 place-items-center rounded-2xl border border-emerald-400/20 bg-emerald-400/10 mb-4">
-            <span className="text-2xl leading-none">📈</span>
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-ghana-gold text-xl font-black leading-none text-ink shadow-gold">
+            ★
           </div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">BranchPort Market</p>
-          <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white">Admin access</h1>
-          <p className="mt-1 text-sm text-gray-400">Stock intelligence, platform-wide</p>
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/40">
+            BranchPort Market
+          </p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">Admin access</h1>
+          <p className="mt-1.5 text-sm text-white/50">Stock intelligence, platform-wide</p>
         </div>
 
-        <div className="rounded-3xl border border-gray-800 bg-gray-900 p-6 shadow-2xl sm:p-7">
+        <div className="card card-enter p-6 sm:p-7 !border-white/10 !bg-white/[0.04]">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="market-password" className="mb-1.5 block text-xs font-medium text-gray-400">
+              <label htmlFor="market-password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-white/40">
                 Admin password
               </label>
               <div className="relative">
@@ -67,13 +69,13 @@ export default function MarketLogin() {
                   placeholder="Enter admin password"
                   autoFocus
                   autoComplete="current-password"
-                  className="input mt-0 w-full pr-11 !border-gray-700 !bg-gray-800 !text-white placeholder:!text-gray-500 focus:!border-emerald-400/50 focus:!ring-emerald-400/10"
+                  className="input-dark mt-0 w-full pr-11 !text-base"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw((s) => !s)}
                   aria-label={showPw ? 'Hide password' : 'Show password'}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-gray-500 hover:bg-gray-700 hover:text-gray-200"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-white/35 hover:bg-white/10 hover:text-white"
                 >
                   <EyeIcon off={showPw} />
                 </button>
@@ -81,7 +83,7 @@ export default function MarketLogin() {
             </div>
 
             {error && (
-              <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-400">
+              <div className="rounded-xl border border-ghana-red/30 bg-ghana-red/10 px-4 py-3 text-center text-sm text-white">
                 {error}
               </div>
             )}
@@ -89,7 +91,7 @@ export default function MarketLogin() {
             <button
               type="submit"
               disabled={!password.trim() || loading}
-              className="btn btn-green w-full !py-3.5 text-[15px] font-semibold"
+              className="btn btn-primary w-full !py-3.5 text-[15px]"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -102,16 +104,19 @@ export default function MarketLogin() {
             </button>
           </form>
 
-          <div className="mt-5 border-t border-gray-800 pt-4 text-center">
-            <p className="text-[11px] text-gray-600">
-              Connected to <span className="text-gray-400">BranchPort</span> platform
+          <div className="mt-5 border-t border-white/10 pt-4 text-center">
+            <p className="text-[11px] text-white/35">
+              Connected to <span className="text-ghana-gold">BranchPort</span> platform
             </p>
           </div>
         </div>
 
-        <p className="mt-6 text-center text-[11px] leading-relaxed text-gray-600">
-          🔒 Unauthorized access is prohibited.
-        </p>
+        <div className="mt-6 flex items-center justify-center gap-2">
+          <div className="ghana-stripe w-16 rounded-full overflow-hidden" style={{ borderRadius: 999 }}>
+            <div className="red" /><div className="gold" /><div className="green" />
+          </div>
+          <p className="text-[11px] text-white/30">🔒 Unauthorized access is prohibited.</p>
+        </div>
       </div>
     </div>
   );

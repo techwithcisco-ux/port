@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { ColorLegend, StatusBadge, ColorStatCard, BarMeter } from '../../components/Visuals';
 import { api } from '../../lib/api';
@@ -52,10 +52,10 @@ export default function StockBalance() {
   useEffect(() => {
     (async () => {
       const [p, b, a, s] = await Promise.all([
-        api.from('products').select('*'),
-        api.from('branches').select('*'),
-        api.from('inventory_allocations').select('*'),
-        api.from('sales').select('*'),
+        api.from('products').select('*').limit(2000),
+        api.from('branches').select('*').limit(2000),
+        api.from('inventory_allocations').select('*').limit(2000),
+        api.from('sales').select('*').limit(2000),
       ]);
       setProducts((p.data as Product[]) ?? []);
       setBranches((b.data as Branch[]) ?? []);
@@ -143,17 +143,14 @@ export default function StockBalance() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div>
-        <div>
-          <h1 className="page-title">Stock Balance</h1>
-          <p className="page-sub">
-            {selectedBranch === 'all'
-              ? 'Quantity and cost of goods across all branches combined.'
-              : `Stock balance at ${selectedBranchObj?.name ?? 'branch'}.`}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Stock Balance"
+        subtitle={
+          selectedBranch === 'all'
+            ? 'Quantity and cost of goods across all branches combined.'
+            : `Stock balance at ${selectedBranchObj?.name ?? 'branch'}.`
+        }
+      />
 
       {/* Filters */}
       <div className="card p-4 mb-3 flex flex-wrap gap-3 items-end max-w-4xl">
@@ -234,9 +231,8 @@ export default function StockBalance() {
                     : (s.byBranch.find((b) => b.branch.id === selectedBranch)?.retailValue ?? 0);
 
                   return (
-                    <>
+                    <Fragment key={s.product.id}>
                       <tr
-                        key={s.product.id}
                         className="border-t cursor-pointer hover:bg-gray-50"
                         onClick={() => setExpandedProduct(isExpanded ? null : s.product.id)}
                       >
@@ -323,7 +319,7 @@ export default function StockBalance() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>

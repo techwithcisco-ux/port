@@ -82,6 +82,22 @@ export function createApiClient(opts: {
 
   // Single-flight refresh: concurrent 401s share one rotation call.
   let refreshPromise: Promise<boolean> | null = null;
+
+  // Access tokens live 15 minutes, so a tab left open (or reopened after the
+  // token lapsed) would otherwise always burn one 401 on `/auth/me` before the
+  // retry path rotates. Reading `exp` client-side lets us rotate first.
+  function accessTokenExpired(token: string): boolean {
+    try {
+      const payload = JSON.parse(
+        atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
+      ) as { exp?: number };
+      // 2s of slack so a token on the edge of expiry is not raced.
+      return typeof payload.exp === 'number' && payload.exp * 1000 - 2000 <= Date.now();
+    } catch {
+      return false;
+    }
+  }
+
   async function refreshNow(): Promise<boolean> {
     if (refreshPromise) return refreshPromise;
     refreshPromise = (async () => {
@@ -121,7 +137,14 @@ export function createApiClient(opts: {
       ...((init?.headers as Record<string, string>) || {}),
     };
     const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
+    // Rotate ahead of time when the stored access token has already lapsed,
+    // so the request goes out with a valid credential instead of a doomed 401.
+    if (token && !AUTH_PATHS.has(path) && getRefreshToken() && accessTokenExpired(token)) {
+      const rotated = await refreshNow();
+      if (!rotated) clearSession();
+    }
+    const usable = getToken();
+    if (usable) headers.Authorization = `Bearer ${usable}`;
     const res = await fetch(`${baseUrl}${path}`, { ...init, headers });
     const body = await res.json().catch(() => ({} as Record<string, unknown>));
     // Access tokens live 15 minutes: on expiry, rotate once and retry.

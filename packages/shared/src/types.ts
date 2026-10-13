@@ -316,6 +316,8 @@ export interface Invoice {
   notes: string;
   created_at: string;
   updated_at: string;
+  /** POS-local only: false while the server copy is still pending retry. */
+  serverSynced?: boolean;
 }
 
 // ── Market Intelligence types ──────────────────────────────────────────────
@@ -444,6 +446,8 @@ export interface Debtor {
   notes: string;
   created_at: string;
   updated_at: string;
+  /** POS-local only: false while the server copy is still pending retry. */
+  serverSynced?: boolean;
 }
 
 export interface DebtorPayment {

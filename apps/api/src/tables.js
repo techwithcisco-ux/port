@@ -44,7 +44,7 @@ export const AUDITED = new Set([
   'creditors',
 ]);
 
-// Columns allowed inHonda generic filters — everything else is rejected to
+// Columns allowed in generic filters — everything else is rejected to
 // keep the gateway from becoming arbitrary SQL.
 const FILTERABLE = new Set([
   'id', 'business_id', 'branch_id', 'product_id', 'supplier_id',
@@ -53,6 +53,8 @@ const FILTERABLE = new Set([
   'reconciled_at', 'allocated_at', 'category', 'frequency',
   'invoice_id', 'debtor_id', 'creditor_id', 'expense_id',
   'customer_phone', 'invoice_number', 'name',
+  // Owner Flags panel: `sales WHERE price_flagged = true`.
+  'price_flagged',
 ]);
 
 export function assertTable(t) {
@@ -90,8 +92,10 @@ export const WRITE_ROLES = {
   expenses: ['manager', 'owner'],
   expense_payments: ['manager', 'owner'],
   invoices: ['staff', 'manager', 'owner'],
-  debtors: ['manager', 'owner'],
-  debtor_payments: ['manager', 'owner'],
+  // Staff POS tills record credit sales, so they must be able to create and
+  // settle the debtor attached to the invoice (same business, their branch).
+  debtors: ['staff', 'manager', 'owner'],
+  debtor_payments: ['staff', 'manager', 'owner'],
   creditors: ['manager', 'owner'],
   creditor_payments: ['manager', 'owner'],
   flagged_backdated_events: ['manager', 'owner'],

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { ColorLegend, BarMeter, SalesFunnel, StatusBadge, ColorStatCard } from '../../components/Visuals';
 import { api } from '../../lib/api';
@@ -36,9 +36,9 @@ export default function ProfitLoss() {
   useEffect(() => {
     (async () => {
       const [p, b, a] = await Promise.allSettled([
-        api.from('products').select('*'),
-        api.from('branches').select('*'),
-        api.from('inventory_allocations').select('*'),
+        api.from('products').select('*').limit(2000),
+        api.from('branches').select('*').limit(2000),
+        api.from('inventory_allocations').select('*').limit(2000),
       ]);
       setProducts((p.status === 'fulfilled' ? p.value.data : null as any) ?? []);
       setBranches((b.status === 'fulfilled' ? b.value.data : null as any) ?? []);
@@ -52,9 +52,9 @@ export default function ProfitLoss() {
     setLoading(true);
     (async () => {
       const [s, e, ep] = await Promise.allSettled([
-        from ? api.from('sales').select('*').gte('sold_at', from) : api.from('sales').select('*'),
-        api.from('expenses').select('*'),
-        api.from('expense_payments').select('*'),
+        from ? api.from('sales').select('*').gte('sold_at', from).limit(2000) : api.from('sales').select('*').limit(2000),
+        api.from('expenses').select('*').limit(2000),
+        api.from('expense_payments').select('*').limit(2000),
       ]);
       setSales((s.status === 'fulfilled' ? s.value.data : null as any) ?? []);
       setExpenses((e.status === 'fulfilled' ? e.value.data : null as any) ?? []);
@@ -93,18 +93,17 @@ export default function ProfitLoss() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div>
-        <div>
-          <h1 className="page-title">💰 Profit & Loss</h1>
-          <p className="page-sub">Sales, cost, expenses, and your bottom line — every color tells the story.</p>
-        </div>
-        <div className="seg max-w-full overflow-x-auto">
-          {PERIODS.map((p) => (
-            <button key={p.key} onClick={() => setPeriod(p.key)} className={`pill ${period === p.key ? 'pill-active' : ''}`}>{p.label}</button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Profit & Loss"
+        subtitle="Sales, cost, expenses, and your bottom line — every color tells the story."
+        right={
+          <div className="seg max-w-full overflow-x-auto">
+            {PERIODS.map((p) => (
+              <button key={p.key} onClick={() => setPeriod(p.key)} className={`pill ${period === p.key ? 'pill-active' : ''}`}>{p.label}</button>
+            ))}
+          </div>
+        }
+      />
 
       <ColorLegend items={[
         { color: 'bg-blue-500', label: 'Revenue' },

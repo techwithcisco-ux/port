@@ -2,11 +2,14 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
 import { useAuth } from '../contexts/AuthContext';
+import { loadFeatureConfig, isFeatureEnabled } from '@branchport/shared';
 import {
   getInventoryStats,
   getAllProductInventoryStatus,
-  type InventoryStats,
+  getTopProductsByRevenue,
+  getUnsoldProducts,
 } from '../lib/inventory';
+import SyncIndicator from '../components/SyncIndicator';
 
 function formatGHS(n: number): string {
   return `GHS ${n.toFixed(2)}`;
@@ -29,8 +32,18 @@ export default function StaffDashboard() {
     const todayStart = getTodayStart();
     const stats = getInventoryStats(products, allocations, sales, profile.branch_id, todayStart);
     const allInventory = getAllProductInventoryStatus(products, allocations, sales, profile.branch_id, todayStart);
-    return { stats, allInventory };
+    const topProducts = getTopProductsByRevenue(products, allocations, sales, profile.branch_id, todayStart, 6);
+    const unsold = getUnsoldProducts(products, allocations, sales, profile.branch_id, todayStart).slice(0, 5);
+    return { stats, allInventory, topProducts, unsold };
   }, [profile?.branch_id, products, allocations, sales]);
+
+  const featureConfig = useMemo(
+    () => loadFeatureConfig((profile?.role as 'owner' | 'manager' | 'staff') ?? 'staff', profile?.id),
+    [profile?.role, profile?.id],
+  );
+  const showProfit =
+    (profile?.role === 'owner' || profile?.role === 'manager') &&
+    isFeatureEnabled(featureConfig, 'pos_profit_display');
 
   if (!profile?.branch_id || !inventory) {
     return (
@@ -40,15 +53,18 @@ export default function StaffDashboard() {
     );
   }
 
-  const { stats, allInventory } = inventory;
+  const { stats, allInventory, topProducts, unsold } = inventory;
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 pb-8">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-10">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">Stock</h1>
-          <p className="text-sm text-gray-500 mt-1">{profile.name} — Today</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">Stock</h1>
+            <p className="text-sm text-gray-500 mt-1">{profile.name} — Today</p>
+          </div>
+          <SyncIndicator compact />
         </div>
       </header>
 
@@ -106,6 +122,81 @@ export default function StaffDashboard() {
             </p>
           </div>
         </div>
+
+        {/* Profit + stock-at-risk — owner/manager only, when enabled */}
+        {showProfit && (
+          <div className="grid grid-cols-2 gap-4 mb-8">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+              <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+                Profit Today
+              </p>
+              <p className={`text-3xl font-bold tabular-nums ${stats.totalProfitToday >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatGHS(stats.totalProfitToday)}
+              </p>
+              <p className="text-sm text-gray-500 mt-3">revenue minus cost of goods</p>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+              <p className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">
+                Stock at Risk
+              </p>
+              <p className="text-3xl font-bold text-gray-900 tabular-nums">
+                {formatGHS(stats.totalInventoryValue)}
+              </p>
+              <p className="text-sm text-gray-500 mt-3">
+                potential revenue {formatGHS(stats.totalPotentialRevenue)}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Top products today */}
+        {topProducts.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-base font-semibold text-gray-900">Top products today</h2>
+              <p className="text-sm text-gray-500 mt-1">Best sellers right now</p>
+            </div>
+            <div className="divide-y">
+              {topProducts.map((p, i) => (
+                <div key={p.productId} className="px-6 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gray-100 text-xs font-bold text-gray-600">
+                      {i + 1}
+                    </span>
+                    <p className="font-medium text-gray-900 truncate">{p.productName}</p>
+                  </div>
+                  <div className="text-right ml-3">
+                    <p className="font-bold tabular-nums text-gray-900">{formatGHS(p.revenueToday)}</p>
+                    <p className="text-xs text-gray-500">{p.unitsSold} sold</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Unsold today */}
+        {unsold.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-base font-semibold text-gray-900">Not selling yet today</h2>
+              <p className="text-sm text-gray-500 mt-1">In stock with zero sales today</p>
+            </div>
+            <div className="divide-y">
+              {unsold.map((p) => (
+                <div key={p.productId} className="px-6 py-3 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 truncate">{p.productName}</p>
+                    <p className="text-xs text-gray-500">{p.remainingQuantity} {p.unit} left</p>
+                  </div>
+                  <p className="text-sm font-semibold tabular-nums text-gray-600 ml-3">
+                    {formatGHS(p.potentialRevenue)} potential
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Simple product list — cards, not tables */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">

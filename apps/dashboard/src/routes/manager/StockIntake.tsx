@@ -1,13 +1,14 @@
 import { useEffect, useState, FormEvent, useMemo } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
+import { ListSkeleton } from '../../components/ListState';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Product, Supplier, ProductVariant, InventoryIntake } from '@branchport/shared';
-import { fileToBase64Limited, isMissingImageColumnError } from '@branchport/shared';
+import { fileToBase64Limited, isMissingImageColumnError, productImageSrc } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
 import { AdinkraStock, IconBox } from '../../components/Icons';
-import { GyeNyame, Nsoromma, GhanaFlagStripe } from '../../components/AdinkraSymbols';
+import { Nsoromma, GhanaFlagStripe } from '../../components/AdinkraSymbols';
 
 // ═══════════════════════════════════════════════════════════════════════
 // UNIFIED STOCK INTAKE — Per-Variant Cost & Profit System
@@ -124,18 +125,23 @@ export default function StockIntake() {
 
   // History edit
   const [editingIntake, setEditingIntake] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function refresh() {
-    const [s, p, v, i] = await Promise.all([
-      api.from('suppliers').select('*').order('name'),
-      api.from('products').select('*').order('created_at', { ascending: false }),
-      api.from('product_variants').select('*'),
-      api.from('inventory_intake').select('*').order('created_at', { ascending: false }),
-    ]);
-    setSuppliers((s.data as Supplier[]) ?? []);
-    setProducts((p.data as Product[]) ?? []);
-    setProductVariants((v.data as ProductVariant[]) ?? []);
-    setIntakes((i.data as InventoryIntake[]) ?? []);
+    try {
+      const [s, p, v, i] = await Promise.all([
+        api.from('suppliers').select('*').order('name'),
+        api.from('products').select('*').order('created_at', { ascending: false }),
+        api.from('product_variants').select('*'),
+        api.from('inventory_intake').select('*').order('created_at', { ascending: false }),
+      ]);
+      setSuppliers((s.data as Supplier[]) ?? []);
+      setProducts((p.data as Product[]) ?? []);
+      setProductVariants((v.data as ProductVariant[]) ?? []);
+      setIntakes((i.data as InventoryIntake[]) ?? []);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { refresh(); }, []);
@@ -274,56 +280,107 @@ export default function StockIntake() {
       const firstSellPrice = calcSellPrice(firstUnitCost, Number(firstV.profitMargin) || 0);
       const unitName = firstV.name.trim() || 'unit';
 
-      // 1. Create product (must await for ID)
-      const productPayload: Record<string, unknown> = {
-        business_id: profile.business_id,
-        name: productName,
-        bulk_unit_name: draft.hasVariants && validVariants.length > 1 ? 'set' : unitName,
-        retail_unit_name: unitName,
-        units_per_bulk: 1,
-        bulk_cost_price: firstUnitCost,
-        bulk_sell_price: firstSellPrice,
-        retail_sell_price: firstSellPrice,
-      };
-      if (draft.image) productPayload.image = draft.image;
-      let prod: { id: string } | null = null;
-      let prodErr: { message: string } | null = null;
-      {
-        const res = await api.from('products').insert(productPayload).select('id').single();
-        prod = (Array.isArray(res.data) ? res.data[0] : res.data) as { id: string } | null;
-        prodErr = res.error;
-      }
-
-      // Defensive: if the database somehow lacks the products.image
-      // column, save the product WITHOUT the photo instead of failing.
-      if (prodErr && draft.image && isMissingImageColumnError(prodErr.message)) {
-        delete productPayload.image;
-        const retry = await api.from('products').insert(productPayload).select('id').single();
-        prod = (Array.isArray(retry.data) ? retry.data[0] : retry.data) as { id: string } | null;
-        prodErr = retry.error;
-        if (!prodErr) photoWarning = true;
-      }
-
-      if (prodErr || !prod?.id) {
-        failures.push(`Error creating "${productName}": ${prodErr?.message ?? 'could not read back the new product id.'}`);
-        continue;
-      }
-
-      // 2. Insert variants (batch)
       const totalAllCosts = validVariants.reduce((s, x) => s + (Number(x.totalCost) || 0), 0);
       const totalPaid = draft.paidOnCredit ? Number(draft.amountPaid || 0) : totalAllCosts;
 
-      const variantRows = validVariants.map((v, i) => ({
-        product_id: prod.id,
-        name: v.name.trim(),
-        price: calcSellPrice(calcUnitCost(Number(v.totalCost), Number(v.quantity)), Number(v.profitMargin) || 0),
-        base_units: 1,
-        sort_order: i,
-      }));
-      const { error: varErr } = await api.from('product_variants').insert(variantRows);
-      if (varErr) failures.push(`"${productName}" variants error: ${varErr.message}`);
+      // 1. Restock-or-create: match an existing product with the same name so
+      // re-ordering a SKU updates it (prices, optional new photo) and stacks
+      // another intake row on top — instead of inserting a duplicate product.
+      const existingProduct = products.find(
+        (p) => p.name.trim().toLowerCase() === productName.toLowerCase(),
+      );
 
-      // 3. Insert intake records (one per variant)
+      let prodId: string;
+      if (existingProduct) {
+        const updatePayload: Record<string, unknown> = {
+          bulk_cost_price: firstUnitCost,
+          bulk_sell_price: firstSellPrice,
+          retail_sell_price: firstSellPrice,
+        };
+        // Keep the old photo unless a new one was captured on this draft.
+        if (draft.image) updatePayload.image = draft.image;
+        const { error: updErr } = await api
+          .from('products')
+          .update(updatePayload)
+          .eq('id', existingProduct.id);
+        if (updErr) {
+          failures.push(`Error updating "${productName}": ${updErr.message}`);
+          continue;
+        }
+        prodId = existingProduct.id;
+
+        // Variants: refresh the price of matching names, insert the new ones.
+        for (let i = 0; i < validVariants.length; i++) {
+          const v = validVariants[i];
+          const vName = v.name.trim();
+          const vPrice = calcSellPrice(
+            calcUnitCost(Number(v.totalCost), Number(v.quantity)),
+            Number(v.profitMargin) || 0,
+          );
+          const existingVariant = productVariants.find(
+            (ev) => ev.product_id === prodId && ev.name.trim().toLowerCase() === vName.toLowerCase(),
+          );
+          if (existingVariant) {
+            const { error } = await api.from('product_variants').update({ price: vPrice }).eq('id', existingVariant.id);
+            if (error) failures.push(`"${productName}" variant "${vName}" update error: ${error.message}`);
+          } else {
+            const { error } = await api.from('product_variants').insert({
+              product_id: prodId, name: vName, price: vPrice, base_units: 1, sort_order: i,
+            });
+            if (error) failures.push(`"${productName}" variant "${vName}" error: ${error.message}`);
+          }
+        }
+      } else {
+        // Brand-new product.
+        const productPayload: Record<string, unknown> = {
+          business_id: profile.business_id,
+          name: productName,
+          bulk_unit_name: draft.hasVariants && validVariants.length > 1 ? 'set' : unitName,
+          retail_unit_name: unitName,
+          units_per_bulk: 1,
+          bulk_cost_price: firstUnitCost,
+          bulk_sell_price: firstSellPrice,
+          retail_sell_price: firstSellPrice,
+        };
+        if (draft.image) productPayload.image = draft.image;
+        let prod: { id: string } | null = null;
+        let prodErr: { message: string } | null = null;
+        {
+          const res = await api.from('products').insert(productPayload).select('id').single();
+          prod = (Array.isArray(res.data) ? res.data[0] : res.data) as { id: string } | null;
+          prodErr = res.error;
+        }
+
+        // Defensive: if the database somehow lacks the products.image
+        // column, save the product WITHOUT the photo instead of failing.
+        if (prodErr && draft.image && isMissingImageColumnError(prodErr.message)) {
+          delete productPayload.image;
+          const retry = await api.from('products').insert(productPayload).select('id').single();
+          prod = (Array.isArray(retry.data) ? retry.data[0] : retry.data) as { id: string } | null;
+          prodErr = retry.error;
+          if (!prodErr) photoWarning = true;
+        }
+
+        if (prodErr || !prod?.id) {
+          failures.push(`Error creating "${productName}": ${prodErr?.message ?? 'could not read back the new product id.'}`);
+          continue;
+        }
+        prodId = prod.id;
+
+        // 2. Insert variants (batch)
+        const variantRows = validVariants.map((v, i) => ({
+          product_id: prodId,
+          name: v.name.trim(),
+          price: calcSellPrice(calcUnitCost(Number(v.totalCost), Number(v.quantity)), Number(v.profitMargin) || 0),
+          base_units: 1,
+          sort_order: i,
+        }));
+        const { error: varErr } = await api.from('product_variants').insert(variantRows);
+        if (varErr) failures.push(`"${productName}" variants error: ${varErr.message}`);
+      }
+
+      // 3. Insert intake records (one per variant) — the supplier ledger row
+      // that records what was bought, for how much, and how much was paid.
       for (const v of validVariants) {
         const totalCost = Number(v.totalCost) || 0;
         const quantity = Number(v.quantity) || 0;
@@ -333,7 +390,7 @@ export default function StockIntake() {
         const { error: intakeErr } = await api.from('inventory_intake').insert({
           business_id: profile.business_id,
           supplier_id: selectedSupplier,
-          product_id: prod.id,
+          product_id: prodId,
           bulk_quantity: quantity,
           cost_price_total: totalCost,
           amount_paid: variantPaid,
@@ -483,14 +540,10 @@ export default function StockIntake() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div className="flex items-center gap-2 mb-1">
-        <GyeNyame size={28} className="text-emerald-600" />
-        <h1 className="page-title mb-0">Stock Intake</h1>
-      </div>
-      <p className="page-sub mb-2">
-        Buy from distributor → Add variants → Auto-calculate costs → Set profit → Done.
-      </p>
+      <PageHeader
+        title="Stock Intake"
+        subtitle="Buy from distributor → Add variants → Auto-calculate costs → Set profit → Done."
+      />
       <GhanaFlagStripe height={4} showStar className="mb-3 rounded-full" />
 
       {/* Step indicators */}
@@ -537,8 +590,10 @@ export default function StockIntake() {
           </form>
 
           <div className="card overflow-hidden">
-            <p className="card-header">Existing Distributors ({suppliers.length})</p>
-            {suppliers.length === 0 ? (
+            <p className="card-header">Existing Distributors ({loading ? '…' : suppliers.length})</p>
+            {loading ? (
+              <div className="p-4"><ListSkeleton rows={3} /></div>
+            ) : suppliers.length === 0 ? (
               <p className="p-4 text-gray-500 text-sm">No distributors yet.</p>
             ) : (
               <ul className="divide-y">
@@ -651,7 +706,7 @@ export default function StockIntake() {
                       <div className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0">
                         {draft.image ? (
                           <img
-                            src={`data:image/jpeg;base64,${draft.image}`}
+                            src={productImageSrc(draft.image)}
                             alt="Product"
                             className="w-full h-full object-cover"
                           />
@@ -911,9 +966,11 @@ export default function StockIntake() {
         <div className="max-w-5xl space-y-8">
           {/* ---- Saved Products ---- */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">All Items ({products.length})</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">All Items ({loading ? '…' : products.length})</h2>
             <p className="text-sm text-gray-500 mb-4">Edit product names, unit names, prices, and variants. Delete items you no longer sell.</p>
-            {products.length === 0 ? (
+            {loading ? (
+              <div className="card p-4"><ListSkeleton rows={4} /></div>
+            ) : products.length === 0 ? (
               <div className="card p-8 text-center">
                 <p className="text-gray-500">No products yet. Add your first in Step ②.</p>
               </div>
@@ -952,7 +1009,7 @@ export default function StockIntake() {
                           <div className="flex items-center gap-3 mt-3">
                             <div className="w-14 h-14 rounded-xl border-2 border-dashed border-gray-300 bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
                               {editProductImage ? (
-                                <img src={`data:image/jpeg;base64,${editProductImage}`} alt="Product" className="w-full h-full object-cover" />
+                                <img src={productImageSrc(editProductImage)} alt="Product" className="w-full h-full object-cover" />
                               ) : (
                                 <span className="text-xl text-gray-400">📸</span>
                               )}
@@ -1034,7 +1091,7 @@ export default function StockIntake() {
                         <div className="p-4 flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             {p.image ? (
-                              <img src={`data:image/jpeg;base64,${p.image}`} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-200 flex-shrink-0" />
+                              <img src={productImageSrc(p.image)} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-200 flex-shrink-0" />
                             ) : (
                               <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-xl text-gray-400 flex-shrink-0">📦</div>
                             )}
@@ -1075,9 +1132,11 @@ export default function StockIntake() {
 
           {/* ---- Intake Records ---- */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">Intake Records ({intakes.length})</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Intake Records ({loading ? '…' : intakes.length})</h2>
             <p className="text-sm text-gray-500 mb-4">Payment history per purchase.</p>
-            {intakes.length === 0 ? (
+            {loading ? (
+              <div className="card p-4"><ListSkeleton rows={4} /></div>
+            ) : intakes.length === 0 ? (
               <div className="card p-8 text-center">
                 <p className="text-gray-500">No intake records yet.</p>
               </div>

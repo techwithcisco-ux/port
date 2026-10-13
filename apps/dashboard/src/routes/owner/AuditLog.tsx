@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
 import { humanizeEvent, humanizeDiff, structuredFields, searchMatches, NameCtx } from '../../lib/humanize';
 import type { AuditEvent } from '@branchport/shared';
-import { AdinkraAudit, AdinkraHistory, IconShield, IconSearch, IconFilter } from '../../components/Icons';
+import { IconShield, IconSearch, IconFilter } from '../../components/Icons';
 
 // Owner's window into the append-only audit log. Reads are owner-only at
 // the RLS layer; a manager cannot query this table at all regardless of
@@ -104,21 +104,10 @@ export default function AuditLog() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-
-      {/* Distinctive audit header — serious, authoritative tone */}
-      <div className="flex items-center gap-3 mb-2">
-        <div className="h-10 w-10 rounded-xl bg-gray-900 flex items-center justify-center">
-          <AdinkraAudit size={20} className="text-white" />
-        </div>
-        <div>
-          <h1 className="page-title mb-0">Audit trail</h1>
-        </div>
-      </div>
-      <p className="text-sm text-gray-500 mb-1 flex items-center gap-2">
-        <AdinkraHistory size={14} className="text-gray-400 shrink-0" />
-        Every action, every actor, every branch — nothing is erased, nothing is rewritten.
-      </p>
+      <PageHeader
+        title="Audit trail"
+        subtitle="Every action, every actor, every branch — nothing is erased, nothing is rewritten."
+      />
       <p className="text-[11px] text-gray-400 mb-3 font-mono">
         Append-only log · Corrections are new rows · Timestamps are immutable
       </p>

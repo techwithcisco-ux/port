@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import PageHeader from '../../components/PageHeader';
 import { api } from '../../lib/api';
 import type { Product, InventoryAllocation, Branch } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
@@ -39,10 +40,7 @@ export default function ManagerStock() {
 
   return (
     <DashboardLayout>
-      <div className="mb-3">
-        <h1 className="text-2xl font-bold text-gray-900">Stock</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage inventory, allocations, and stock levels.</p>
-      </div>
+      <PageHeader title="Stock" subtitle="Manage inventory, allocations, and stock levels." />
 
       {/* Tab selector */}
       <div className="flex gap-2 mb-3">
@@ -98,11 +96,11 @@ export default function ManagerStock() {
           {/* Quick actions */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <Link
-              to="/manager/inventory"
+              to="/manager/intake"
               className="bg-white border-2 rounded-2xl p-4 text-center transition-all hover:-translate-y-0.5"
               style={{borderColor: 'var(--ghana-gold)', background: 'rgba(252,209,22,0.05)'}}
             >
-              <span className="text-2xl block mb-2">🇬🇭</span>
+              <span className="text-2xl block mb-2">🛒</span>
               <span className="text-sm font-bold" style={{color: 'var(--ghana-black)'}}>Buy Stock (Intake)</span>
               <span className="text-[10px] block text-gray-400 mt-0.5">Distributor → Product → Price</span>
             </Link>

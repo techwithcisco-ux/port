@@ -126,3 +126,24 @@ export function IconSignal({ size = 24, online = true, ...props }: IconProps & {
     </svg>
   );
 }
+
+/** Calculator */
+export function IconCalculator({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="4" y="2" width="16" height="20" rx="2" />
+      <path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h4" />
+    </svg>
+  );
+}
+
+/** Sync / refresh arrows */
+export function IconSync({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M21 12a9 9 0 01-9 9 9 9 0 01-7.5-4" />
+      <path d="M3 12a9 9 0 019-9 9 9 0 017.5 4" />
+      <path d="M21 3v5h-5M3 21v-5h5" />
+    </svg>
+  );
+}

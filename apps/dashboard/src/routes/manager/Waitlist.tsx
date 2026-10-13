@@ -1,5 +1,5 @@
 import { useEffect, useState, FormEvent } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -153,12 +153,10 @@ export default function Waitlist() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <h1 className="page-title mb-1">Customer waitlist</h1>
-      <p className="page-sub mb-4">
-        Send a customer their personal shop link — they see live stock, pick quantities,
-        and forward the order to you on WhatsApp.
-      </p>
+      <PageHeader
+        title="Customer waitlist"
+        subtitle="Send a customer their personal shop link — they see live stock, pick quantities, and forward the order to you on WhatsApp."
+      />
 
       <div className="grid gap-4 lg:grid-cols-2 max-w-6xl">
         <div className="space-y-4">

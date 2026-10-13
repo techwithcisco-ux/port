@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import PageHeader from '../../components/PageHeader';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Product, Sale, Expense } from '@branchport/shared';
@@ -20,9 +21,9 @@ export default function ManagerMoney() {
     async function load() {
       const monthStart = startOfMonth();
       const [s, p, e] = await Promise.allSettled([
-        api.from('sales').select('*').gte('sold_at', monthStart),
-        api.from('products').select('*'),
-        api.from('expenses').select('*'),
+        api.from('sales').select('*').gte('sold_at', monthStart).limit(2000),
+        api.from('products').select('*').limit(2000),
+        api.from('expenses').select('*').limit(2000),
       ]);
       if (s.status === 'fulfilled' && !s.value.error) setSales((s.value.data as Sale[]) ?? []);
       if (p.status === 'fulfilled' && !p.value.error) setProducts((p.value.data as Product[]) ?? []);
@@ -53,10 +54,7 @@ export default function ManagerMoney() {
 
   return (
     <DashboardLayout>
-      <div className="mb-3">
-        <h1 className="page-title">Money</h1>
-        <p className="page-sub">This month's financial overview.</p>
-      </div>
+      <PageHeader title="Money" subtitle="This month's financial overview." />
 
       {/* Tab selector */}
       <div className="flex gap-2 mb-3 flex-wrap">

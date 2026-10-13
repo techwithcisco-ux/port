@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -118,11 +118,10 @@ export default function OwnerStockAllocation() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <h1 className="page-title mb-1">Stock allocation</h1>
-      <p className="page-sub mb-3">
-        Allocate stock to yourself or to branches. As owner you have full control over inventory distribution.
-      </p>
+      <PageHeader
+        title="Stock allocation"
+        subtitle="Allocate stock to yourself or to branches. As owner you have full control over inventory distribution."
+      />
 
       <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
         <form onSubmit={handleAllocate} className="card p-4 space-y-2 h-fit">
@@ -175,8 +174,10 @@ export default function OwnerStockAllocation() {
                 <label className="label">Bulk purchase price</label>
                 <div className="flex items-center gap-3">
                   <button
+                    type="button"
                     onClick={() => setBulkCost(String(Math.max(0, Number(bulkCost) - 50)))}
                     className="h-10 w-12 rounded-xl bg-gray-200 text-gray-600 text-xl font-medium flex items-center justify-center"
+                    aria-label="Decrease Bulk purchase price"
                   >
                     −
                   </button>
@@ -190,8 +191,10 @@ export default function OwnerStockAllocation() {
                     placeholder="GHS"
                   />
                   <button
+                    type="button"
                     onClick={() => setBulkCost(String(Number(bulkCost) + 50))}
                     className="h-10 w-12 rounded-xl bg-gray-200 text-gray-600 text-xl font-medium flex items-center justify-center"
+                    aria-label="Increase Bulk purchase price"
                   >
                     +
                   </button>
@@ -215,8 +218,10 @@ export default function OwnerStockAllocation() {
                 </label>
                 <div className="flex items-center gap-3">
                   <button
+                    type="button"
                     onClick={() => setQuantity(String(Math.max(0, parsedQty - 1)))}
                     className="h-10 w-12 rounded-xl bg-gray-200 text-gray-600 text-sm font-medium flex items-center justify-center"
+                    aria-label="Decrease quantity"
                   >
                     −
                   </button>
@@ -230,8 +235,10 @@ export default function OwnerStockAllocation() {
                     placeholder="0"
                   />
                   <button
+                    type="button"
                     onClick={() => setQuantity(String(Number(parsedQty) + 1))}
                     className="h-10 w-12 rounded-xl bg-gray-200 text-gray-600 text-sm font-medium flex items-center justify-center"
+                    aria-label="Increase quantity"
                   >
                     +
                   </button>

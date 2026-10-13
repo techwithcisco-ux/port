@@ -2,13 +2,23 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, InventoryAllocation, Invoice, Product, Sale } from '@branchport/shared';
 import { formatGHS, startOfWeek, startOfMonth } from '../../lib/utils';
 import { PerformanceTube, IconCurrency } from '../../components/Icons';
-import { Funtunfunefu, BlackStar, Nsoromma, GyeNyame, GhanaFlagStripe, Adinkrahene } from '../../components/AdinkraSymbols';
+import { Funtunfunefu, BlackStar, Nsoromma, GyeNyame, Adinkrahene } from '../../components/AdinkraSymbols';
 
 const OWNER_CACHE_KEY = 'branchport-owner-snapshot-v2';
-type OwnerSnapshot = { sales: Sale[]; branches: Branch[]; products: Product[]; allocations: InventoryAllocation[]; savedAt: string };
+type OwnerSnapshot = {
+  sales: Sale[];
+  branches: Branch[];
+  products: Product[];
+  allocations: InventoryAllocation[];
+  invoices?: Invoice[];
+  savedAt: string;
+};
+// A cached snapshot older than this is not worth showing offline.
+const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 // Helper: get date ranges
 function todayStart(): string {
@@ -37,6 +47,7 @@ function Compare({ current, previous, label }: { current: number; previous: numb
 }
 
 export default function OwnerHome() {
+  const { profile } = useAuth();
   const [period, setPeriod] = useState('week');
   const [sales, setSales] = useState<Sale[]>([]);
   const [allSales, setAllSales] = useState<Sale[]>([]); // for comparisons
@@ -44,20 +55,43 @@ export default function OwnerHome() {
   const [products, setProducts] = useState<Product[]>([]);
   const [allocations, setAllocations] = useState<InventoryAllocation[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [businessName, setBusinessName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load cached data
+  // The greeting used to be hardcoded "My Business" regardless of what the
+  // owner actually called their shop.
+  useEffect(() => {
+    if (!profile?.business_id) return;
+    let cancelled = false;
+    api.from('businesses').select('name').eq('id', profile.business_id).single()
+      .then(({ data, error }: any) => {
+        if (!cancelled && !error && data?.name) setBusinessName(data.name);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [profile?.business_id]);
+
+  // Load cached data. `allSales` and `invoices` have to be hydrated too —
+  // only restoring `sales` meant the period effect below immediately
+  // replaced them with a filter over an empty `allSales` and wiped it.
   useEffect(() => {
     const cached = localStorage.getItem(OWNER_CACHE_KEY);
-    if (cached) {
-      try {
-        const snapshot = JSON.parse(cached) as OwnerSnapshot;
-        setSales(snapshot.sales);
-        setBranches(snapshot.branches);
-        setProducts(snapshot.products);
-        setAllocations(snapshot.allocations);
-        setLoading(false);
-      } catch { localStorage.removeItem(OWNER_CACHE_KEY); }
+    if (!cached) return;
+    try {
+      const snapshot = JSON.parse(cached) as OwnerSnapshot;
+      const age = snapshot.savedAt ? Date.now() - Date.parse(snapshot.savedAt) : 0;
+      setAllSales(snapshot.sales ?? []);
+      setSales(snapshot.sales ?? []);
+      setBranches(snapshot.branches ?? []);
+      setProducts(snapshot.products ?? []);
+      setAllocations(snapshot.allocations ?? []);
+      setInvoices(snapshot.invoices ?? []);
+      setLoading(false);
+      if (Number.isFinite(age) && age > CACHE_MAX_AGE_MS) {
+        localStorage.removeItem(OWNER_CACHE_KEY);
+      }
+    } catch {
+      localStorage.removeItem(OWNER_CACHE_KEY);
     }
   }, []);
 
@@ -81,7 +115,7 @@ export default function OwnerHome() {
         const allS = (s as PromiseFulfilledResult<any>).value.data as Sale[] ?? [];
         setAllSales(allS);
         const safeData = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value.data ?? [] : [];
-        localStorage.setItem(OWNER_CACHE_KEY, JSON.stringify({ sales: allS, branches: safeData(b), products: safeData(p), allocations: safeData(a), savedAt: new Date().toISOString() }));
+        localStorage.setItem(OWNER_CACHE_KEY, JSON.stringify({ sales: allS, branches: safeData(b), products: safeData(p), allocations: safeData(a), invoices: safeData(inv), savedAt: new Date().toISOString() }));
       }
       setLoading(false);
     }
@@ -177,27 +211,26 @@ export default function OwnerHome() {
 
   return (
     <DashboardLayout>
-      {/* Ghana Welcome Banner with Nkrumah branding */}
-      <div className="mb-3 rounded-2xl p-4 text-white relative overflow-hidden" style={{background: 'linear-gradient(135deg, var(--ghana-red) 0%, var(--kente-maroon) 100%)'}}>
+      {/* Welcome banner */}
+      <div className="mb-3 rounded-2xl p-4 text-white relative overflow-hidden" style={{ background: 'var(--ghana-black)' }}>
         <div className="absolute top-0 right-0 opacity-10">
           <GyeNyame size={120} color="white" />
         </div>
         <div className="flex items-center gap-3 mb-2 relative">
           <BlackStar size={40} color="var(--ghana-gold)" />
           <div>
-            <h1 className="text-2xl font-bold">🇬🇭 Akwaaba! My Business</h1>
-            <p className="text-sm text-red-200 mt-1">"Sankofa" — Look back to move forward. Everything in your business, right now.</p>
+            <h1 className="text-2xl font-bold">Welcome back, {businessName ?? 'your business'}</h1>
+            <p className="text-sm text-gray-300 mt-1">Everything in your business, right now.</p>
           </div>
         </div>
       </div>
-      <GhanaFlagStripe height={6} showStar className="mb-3 rounded-full" />
 
       {/* Period selector — Ghana gold active */}
       <div className="flex gap-2 mb-3">
         {[
-          { key: 'today', label: '📅 Today' },
-          { key: 'week', label: '📊 This Week' },
-          { key: 'month', label: '📈 This Month' },
+          { key: 'today', label: 'Today' },
+          { key: 'week', label: 'This Week' },
+          { key: 'month', label: 'This Month' },
         ].map((p) => (
           <button
             key={p.key}
@@ -317,7 +350,7 @@ export default function OwnerHome() {
             <Funtunfunefu size={18} className="text-gray-400" />
             <h2 className="text-base font-semibold text-gray-900">Store Performance</h2>
           </div>
-          {branchRevenue.length === 0 ? (
+          {branchRevenue.length === 0 || branchRevenue.every((b) => b.revenue === 0) ? (
             <p className="text-sm text-gray-400 py-4">No sales data yet.</p>
           ) : (
             <div className="flex items-end justify-around gap-3 overflow-x-auto py-4">
@@ -378,10 +411,10 @@ export default function OwnerHome() {
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
         {[
-          { to: '/owner/stores', icon: <Nsoromma size={28} color="white" />, label: '🏪 Stores', bg: 'var(--ghana-green)' },
-          { to: '/owner/money', icon: <IconCurrency size={28} />, label: '💰 Sika (Money)', bg: 'var(--ghana-gold)' },
-          { to: '/owner/team', icon: <Adinkrahene size={28} color="white" />, label: '👥 Adwo (Team)', bg: 'var(--kente-indigo)' },
-          { to: '/owner/features', icon: <GyeNyame size={28} color="white" />, label: '⚙️ Nhyehyee (Settings)', bg: 'var(--kente-teal)' },
+          { to: '/owner/stores', icon: <Nsoromma size={28} color="white" />, label: 'Stores', bg: 'var(--ghana-green)' },
+          { to: '/owner/money', icon: <IconCurrency size={28} />, label: 'Money', bg: 'var(--ghana-gold)' },
+          { to: '/owner/team', icon: <Adinkrahene size={28} color="white" />, label: 'Team', bg: 'var(--kente-indigo)' },
+          { to: '/owner/features', icon: <GyeNyame size={28} color="white" />, label: 'Settings', bg: 'var(--kente-teal)' },
         ].map((link) => (
           <Link
             key={link.to}

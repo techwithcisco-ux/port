@@ -38,6 +38,7 @@ DELETE FROM products;
 DELETE FROM suppliers;
 DELETE FROM waitlist_orders;
 DELETE FROM waitlist_invites;
+DELETE FROM shop_views;
 
 -- ── Users, then branches, then businesses ──
 DELETE FROM users;
@@ -54,6 +55,7 @@ UNION ALL SELECT 'audit_events', count(*) FROM audit_events
 UNION ALL SELECT 'refresh_tokens', count(*) FROM refresh_tokens
 UNION ALL SELECT 'password_reset_tokens', count(*) FROM password_reset_tokens
 UNION ALL SELECT 'waitlist_orders', count(*) FROM waitlist_orders
-UNION ALL SELECT 'waitlist_invites', count(*) FROM waitlist_invites;
+UNION ALL SELECT 'waitlist_invites', count(*) FROM waitlist_invites
+UNION ALL SELECT 'shop_views', count(*) FROM shop_views;
 
 COMMIT;

@@ -31,7 +31,11 @@ export default class ErrorBoundary extends Component<Props, State> {
   handleClearData = () => {
     const keys = Object.keys(localStorage);
     for (const k of keys) {
-      if (k.startsWith('branchport')) localStorage.removeItem(k);
+      // Must include `bp-session-*` (the JWT) — otherwise AuthContext finds
+      // the surviving token, redirects off /login and lands right back here.
+      if (k.startsWith('branchport') || k.startsWith('bp-') || k.startsWith('sb-')) {
+        localStorage.removeItem(k);
+      }
     }
     sessionStorage.clear();
     window.location.href = '/login';

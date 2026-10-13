@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
 import { formatGHS, startOfWeek, startOfMonth } from '../../lib/utils';
@@ -142,14 +142,8 @@ export default function Documents() {
 
   return (
     <DashboardLayout>
-      <BackButton />
       <div className="no-print">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="page-title">📄 Documents</h1>
-            <p className="page-sub">Sales receipts and invoices — view, print, or share.</p>
-          </div>
-        </div>
+        <PageHeader title="Documents" subtitle="Sales receipts and invoices — view, print, or share." />
 
         {/* Period tabs */}
         <div className="flex gap-2 mb-4 flex-wrap">

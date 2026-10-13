@@ -198,6 +198,11 @@ export type FeatureConfig = Partial<Record<FeatureKey, boolean>>;
 
 const CONFIG_STORAGE_KEY = 'branchport-feature-config-v1';
 
+/** Per-account storage key so toggles never leak between users on a shared device. */
+function configStorageKey(userId?: string | null): string {
+  return `${CONFIG_STORAGE_KEY}:${userId && userId.length > 0 ? userId : 'anon'}`;
+}
+
 /** Get defaults for a role. */
 export function getDefaultConfig(role: 'owner' | 'manager' | 'staff'): FeatureConfig {
   const config: FeatureConfig = {};
@@ -207,24 +212,35 @@ export function getDefaultConfig(role: 'owner' | 'manager' | 'staff'): FeatureCo
   return config;
 }
 
-/** Load config from localStorage. Falls back to role defaults. */
-export function loadFeatureConfig(role: 'owner' | 'manager' | 'staff'): FeatureConfig {
+/** Load config from localStorage (scoped to the signed-in account). Falls back to role defaults. */
+export function loadFeatureConfig(
+  role: 'owner' | 'manager' | 'staff',
+  userId?: string | null,
+): FeatureConfig {
   try {
-    const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+    const raw = localStorage.getItem(configStorageKey(userId));
     if (raw) {
       const stored = JSON.parse(raw) as FeatureConfig;
       // Merge with defaults so new features get their default value
       const defaults = getDefaultConfig(role);
       return { ...defaults, ...stored };
     }
+    // One-time migration from the old shared (per-browser) key.
+    const legacy = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (legacy && userId) {
+      const stored = JSON.parse(legacy) as FeatureConfig;
+      const merged = { ...getDefaultConfig(role), ...stored };
+      localStorage.setItem(configStorageKey(userId), JSON.stringify(merged));
+      return merged;
+    }
   } catch { /* corrupt storage — use defaults */ }
   return getDefaultConfig(role);
 }
 
-/** Save config to localStorage. */
-export function saveFeatureConfig(config: FeatureConfig): void {
+/** Save config to localStorage, scoped to the account that owns it. */
+export function saveFeatureConfig(config: FeatureConfig, userId?: string | null): void {
   try {
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+    localStorage.setItem(configStorageKey(userId), JSON.stringify(config));
   } catch { /* quota exceeded */ }
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import {
   getMarketStats,
@@ -67,20 +67,10 @@ export default function MarketIntelligence() {
     <DashboardLayout>
       <div className="max-w-6xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="page-title">Market Intelligence</h1>
-            <p className="page-sub">
-              Cross-market analytics across all shops on BranchPort
-            </p>
-          </div>
-          <Link
-            to="/owner"
-            className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200"
-          >
-            ← Dashboard
-          </Link>
-        </div>
+        <PageHeader
+          title="Market Intelligence"
+          subtitle="Cross-market analytics across all shops on BranchPort"
+        />
 
         {/* Tabs */}
         <div className="flex gap-1 mb-3 bg-gray-100 rounded-xl p-1 w-fit">

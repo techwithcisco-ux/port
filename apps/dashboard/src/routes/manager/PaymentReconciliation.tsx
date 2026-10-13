@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -208,13 +208,10 @@ export default function PaymentReconciliation() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div>
-        <div>
-          <h1 className="page-title">🔄 Payment Reconciliation</h1>
-          <p className="page-sub">Match payments to who owes you and who you owe.</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Payment Reconciliation"
+        subtitle="Match payments to who owes you and who you owe."
+      />
 
       {status && (
         <div className="mb-4 px-4 py-3 bg-green-50 text-green-800 rounded-xl text-sm font-medium">{status}</div>

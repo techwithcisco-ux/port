@@ -1,12 +1,12 @@
 import { useEffect, useState, FormEvent } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
+import { ListSkeleton } from '../../components/ListState';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Product, ProductVariant } from '@branchport/shared';
-import { fileToBase64Limited } from '@branchport/shared';
+import { fileToBase64Limited, productImageSrc } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
-import { AdinkraStock, IconBox } from '../../components/Icons';
 
 // Product setup with variants. Informal-market stock isn't "bulk vs retail"
 // — sugar is sold as cups, bags, sachets. Each product is entered as a list
@@ -48,23 +48,28 @@ export default function ProductSetup() {
   const [saving, setSaving] = useState(false); // blocks double-submit duplicates
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function refresh() {
-    const [{ data: prodRows }, { data: variantRows }] = await Promise.all([
-      api.from('products').select('*').order('created_at', { ascending: false }),
-      api.from('product_variants').select('*'),
-    ]);
-    const variantsByProduct = new Map<string, ProductVariant[]>();
-    for (const v of (variantRows as ProductVariant[] | null) ?? []) {
-      const list = variantsByProduct.get(v.product_id) ?? [];
-      list.push(v);
-      variantsByProduct.set(v.product_id, list);
+    try {
+      const [{ data: prodRows }, { data: variantRows }] = await Promise.all([
+        api.from('products').select('*').order('created_at', { ascending: false }),
+        api.from('product_variants').select('*'),
+      ]);
+      const variantsByProduct = new Map<string, ProductVariant[]>();
+      for (const v of (variantRows as ProductVariant[] | null) ?? []) {
+        const list = variantsByProduct.get(v.product_id) ?? [];
+        list.push(v);
+        variantsByProduct.set(v.product_id, list);
+      }
+      const joined = ((prodRows as Product[] | null) ?? []).map((p) => ({
+        ...p,
+        variants: (variantsByProduct.get(p.id) ?? []).sort((a, b) => a.sort_order - b.sort_order),
+      }));
+      setProducts(joined);
+    } finally {
+      setLoading(false);
     }
-    const joined = ((prodRows as Product[] | null) ?? []).map((p) => ({
-      ...p,
-      variants: (variantsByProduct.get(p.id) ?? []).sort((a, b) => a.sort_order - b.sort_order),
-    }));
-    setProducts(joined);
   }
 
   useEffect(() => {
@@ -171,15 +176,10 @@ export default function ProductSetup() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div className="flex items-center gap-2 mb-1">
-        <AdinkraStock size={22} className="text-emerald-600" />
-        <h1 className="page-title mb-0">Product setup</h1>
-      </div>
-      <p className="page-sub mb-3">
-        Add a product with its variants — e.g. Sugar sold as a cup, a bag, or a sachet. The first variant is the
-        base unit stock is counted in.
-      </p>
+      <PageHeader
+        title="Product setup"
+        subtitle="Add a product with its variants — e.g. Sugar sold as a cup, a bag, or a sachet. The first variant is the base unit stock is counted in."
+      />
 
       <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
         <form onSubmit={handleSubmit} className="card p-4 space-y-2 h-fit">
@@ -187,7 +187,7 @@ export default function ProductSetup() {
           <div className="flex items-center gap-4 p-3 rounded-xl bg-gray-50 border border-gray-200">
             <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
               {image ? (
-                <img src={`data:image/jpeg;base64,${image}`} alt="Product" className="w-full h-full object-cover" />
+                <img src={productImageSrc(image)} alt="Product" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-3xl text-gray-400">📸</span>
               )}
@@ -316,8 +316,10 @@ export default function ProductSetup() {
         </form>
 
         <div className="card overflow-hidden">
-          <p className="card-header">Products ({products.length})</p>
-          {products.length === 0 ? (
+          <p className="card-header">Products ({loading ? '…' : products.length})</p>
+          {loading ? (
+            <div className="p-4"><ListSkeleton rows={4} /></div>
+          ) : products.length === 0 ? (
             <p className="p-4 text-gray-500 text-sm">
               No products yet. Add your first one here so intake, allocation and the staff POS
               have something to work from.
@@ -327,7 +329,7 @@ export default function ProductSetup() {
               {products.map((p) => (
                 <li key={p.id} className="px-4 py-3 text-sm flex items-start gap-3">
                   {p.image ? (
-                    <img src={`data:image/jpeg;base64,${p.image}`} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
+                    <img src={productImageSrc(p.image)} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
                   ) : (
                     <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-base text-gray-400 flex-shrink-0">📦</div>
                   )}

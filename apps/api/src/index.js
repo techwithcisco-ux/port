@@ -128,7 +128,9 @@ app.post('/auth/login', rateLimit, async (req, res) => {
 
 // ── Auth: POS login (phone + password ALWAYS required) ─────────
 // No passwordless fallback: every till account has a bcrypt password
-// set at provisioning. Staff without a branch are rejected — the till
+// set at provisioning. Any role may open the till as long as it is tied
+// to a branch — the owner sells from "Main Store", a manager from the
+// branch they were given. Accounts with no branch are rejected: the till
 // is branch-scoped and has no stock to sell otherwise.
 app.post('/auth/pos-login', rateLimit, async (req, res) => {
   try {
@@ -140,7 +142,10 @@ app.post('/auth/pos-login', rateLimit, async (req, res) => {
     const r = await query('SELECT * FROM users WHERE phone = $1 LIMIT 1', [cleanPhone]);
     const user = r.rows[0];
     if (!user) return res.status(401).json({ error: 'Wrong phone number or password.' });
-    if (user.role !== 'staff' && user.role !== 'manager') return res.status(403).json({ error: 'No POS access.' });
+    // Explicit allowlist — a future role must be admitted on purpose.
+    if (!['staff', 'manager', 'owner'].includes(user.role)) {
+      return res.status(403).json({ error: 'No POS access.' });
+    }
     if (isLocked(user)) {
       await recordAuthAudit(user.id, cleanPhone, 'pos_login_locked', false, req.ip);
       return res.status(423).json({ error: 'Account locked after too many attempts. Try again in 15 minutes.' });
@@ -401,8 +406,90 @@ function scopeClause(table, user, params, idx) {
     params.push(user.business_id);
     return { sql: `"${table}".branch_id IN (SELECT id FROM branches WHERE business_id = $${idx})`, nextIdx: idx + 1 };
   }
-  // Join-scoped tables inherit scope from parents (checked on write).
-  return { sql: '1=1', nextIdx: idx };
+  // Join tables inherit their scope from the parent row's business. Without
+  // these, a business could read/write ANY tenant's variants and payments.
+  if (table === 'product_variants') {
+    params.push(user.business_id);
+    return {
+      sql: `"${table}".product_id IN (SELECT id FROM products WHERE business_id = $${idx})`,
+      nextIdx: idx + 1,
+    };
+  }
+  if (table === 'expense_payments') {
+    params.push(user.business_id);
+    return {
+      sql: `"${table}".expense_id IN (SELECT id FROM expenses WHERE business_id = $${idx})`,
+      nextIdx: idx + 1,
+    };
+  }
+  if (table === 'debtor_payments') {
+    params.push(user.business_id);
+    return {
+      sql: `"${table}".debtor_id IN (SELECT id FROM debtors WHERE business_id = $${idx})`,
+      nextIdx: idx + 1,
+    };
+  }
+  if (table === 'creditor_payments') {
+    params.push(user.business_id);
+    return {
+      sql: `"${table}".creditor_id IN (SELECT id FROM creditors WHERE business_id = $${idx})`,
+      nextIdx: idx + 1,
+    };
+  }
+  // Unknown join-style table: deny rather than fall through unscoped. Every
+  // table in TABLES must be explicitly scoped above.
+  return { sql: '1 = 0', nextIdx: idx };
+}
+
+// Validates one write row's tenant/branch ownership before it reaches the
+// database. Business-owned tables carry business_id directly; join tables
+// (variants, payments) inherit scope from their parent row, which we look up.
+// Returns { ok: false, error } on the first violation.
+async function assertWriteScope(table, row, me) {
+  const businessTables = new Set([
+    'branches', 'suppliers', 'inventory_intake', 'supplier_payments',
+    'supplier_reconciliations', 'expenses', 'debtors', 'creditors',
+  ]);
+  if (table === 'products') {
+    if (row.business_id && row.business_id !== me.business_id) {
+      return { ok: false, error: 'Cross-business write blocked' };
+    }
+  }
+  if (businessTables.has(table)) {
+    if (row.business_id && row.business_id !== me.business_id) {
+      return { ok: false, error: 'Cross-business write blocked' };
+    }
+  }
+  if (table === 'sales' || table === 'inventory_allocations' || table === 'invoices') {
+    if (me.role === 'staff' && me.branch_id && row.branch_id && row.branch_id !== me.branch_id) {
+      return { ok: false, error: 'Staff can only write their branch' };
+    }
+    // manager/owner writing a branch-scoped row: branch must be theirs.
+    if (row.branch_id && (me.role === 'manager' || me.role === 'owner')) {
+      const b = await query(
+        `SELECT 1 FROM branches WHERE id = $1 AND business_id = $2`,
+        [row.branch_id, me.business_id],
+      );
+      if (b.rows.length === 0) return { ok: false, error: 'Branch not in your business' };
+    }
+  }
+  // Join tables: the parent row must belong to this business.
+  const parentChecks = [
+    ['product_variants', 'product_id', 'products'],
+    ['expense_payments', 'expense_id', 'expenses'],
+    ['debtor_payments', 'debtor_id', 'debtors'],
+    ['creditor_payments', 'creditor_id', 'creditors'],
+  ];
+  for (const [t, fkCol, parentTable] of parentChecks) {
+    if (table === t && row[fkCol]) {
+      const p = await query(
+        `SELECT 1 FROM "${parentTable}" WHERE id = $1 AND business_id = $2`,
+        [row[fkCol], me.business_id],
+      );
+      if (p.rows.length === 0) return { ok: false, error: `${parentTable} not in your business` };
+    }
+  }
+  return { ok: true };
 }
 
 // ── Generic read ─────────────────────────────────────────────
@@ -490,28 +577,24 @@ app.post('/api/:table', authRequired, async (req, res) => {
         if (r.image && String(r.image).length > 700000) {
           return res.status(400).json({ error: 'Product image too large (max ~500KB). Use a smaller photo.' });
         }
-        if (me.role !== 'owner' && me.role !== 'manager') return res.status(403).json({ error: 'Forbidden' });
-        r.business_id = r.business_id || me.business_id;
-        if (r.business_id !== me.business_id) return res.status(403).json({ error: 'Cross-business write blocked' });
-      }
-    }
-    if (['branches', 'suppliers', 'inventory_intake', 'supplier_payments', 'supplier_reconciliations', 'expenses', 'debtors', 'creditors'].includes(table)) {
-      for (const r of rows) {
-        r.business_id = r.business_id || me.business_id;
-        if (r.business_id !== me.business_id) return res.status(403).json({ error: 'Cross-business write blocked' });
-      }
-    }
-    if (table === 'sales' || table === 'inventory_allocations' || table === 'invoices') {
-      for (const r of rows) {
-        if (me.role === 'staff' && me.branch_id && r.branch_id && r.branch_id !== me.branch_id) {
-          return res.status(403).json({ error: 'Staff can only write their branch' });
-        }
       }
     }
     if (table === 'users') {
       // No direct inserts: provisioning (password policy, activation token,
       // audit) lives in POST /auth/staff. The generic gateway would bypass it.
       return res.status(403).json({ error: 'Use POST /auth/staff to create users.' });
+    }
+
+    // Tenant/branch ownership: default business_id from the JWT, then verify
+    // parents for join tables. Runs per row so a mixed batch can't smuggle a
+    // cross-tenant write past a clean first row.
+    for (const row of rows) {
+      if (['products', 'branches', 'suppliers', 'inventory_intake', 'supplier_payments',
+           'supplier_reconciliations', 'expenses', 'debtors', 'creditors'].includes(table)) {
+        row.business_id = row.business_id || me.business_id;
+      }
+      const scope = await assertWriteScope(table, row, me);
+      if (!scope.ok) return res.status(403).json({ error: scope.error });
     }
 
     const out = [];
@@ -665,6 +748,22 @@ app.post('/api/:table/upsert', authRequired, async (req, res) => {
     const me = await loadUserById(req.auth.sub);
     const row = req.body || {};
     if (!row.id) return res.status(400).json({ error: 'Upsert requires id' });
+    if (table === 'products' && row.image && String(row.image).length > 700000) {
+      return res.status(400).json({ error: 'Product image too large (max ~500KB).' });
+    }
+    // Same tenant/branch rules as POST — the old upsert had none, letting any
+    // authenticated role overwrite any row by id across businesses.
+    if (['products', 'branches', 'suppliers', 'inventory_intake', 'supplier_payments',
+         'supplier_reconciliations', 'expenses', 'debtors', 'creditors'].includes(table)) {
+      row.business_id = row.business_id || me.business_id;
+    }
+    const scope = await assertWriteScope(table, row, me);
+    if (!scope.ok) return res.status(403).json({ error: scope.error });
+
+    // Before-state for the audit trail (upserts previously recorded none).
+    const beforeRes = await query(`SELECT * FROM "${table}" WHERE id = $1`, [row.id]);
+    const before = beforeRes.rows[0] || null;
+
     const cols = Object.keys(row);
     const vals = cols.map((c) => (typeof row[c] === 'object' && row[c] !== null ? JSON.stringify(row[c]) : row[c]));
     const placeholders = cols.map((_, n) => `$${n + 1}`).join(', ');
@@ -674,7 +773,7 @@ app.post('/api/:table/upsert', authRequired, async (req, res) => {
        ON CONFLICT (id) DO UPDATE SET ${updates} RETURNING *`,
       vals,
     );
-    if (AUDITED.has(table)) await writeAudit(me, 'upsert', table, r.rows[0].id, null, r.rows[0]);
+    if (AUDITED.has(table)) await writeAudit(me, 'upsert', table, r.rows[0].id, before, r.rows[0]);
     res.json({ data: [r.rows[0]] });
   } catch (e) {
     console.error('upsert failed:', e.message);
@@ -935,6 +1034,10 @@ app.get('/w/:token', publicLimit, async (req, res) => {
     if (!inv) return res.status(404).json({ error: 'This shop link is invalid.' });
     if (inv.status === 'revoked') return res.status(410).json({ error: 'This shop link was revoked. Ask the shop for a new one.' });
     if (inv.status === 'expired') return res.status(410).json({ error: 'This shop link expired. Ask the shop for a new one.' });
+    // Study hub: every catalog open is a shop view (who/when, no tracking
+    // pixels needed). Best-effort — never block the customer on it.
+    query('INSERT INTO shop_views (invite_id, business_id) VALUES ($1, $2)', [inv.id, inv.business_id])
+      .catch(() => {});
     res.json({
       business_name: inv.business_name,
       branch_name: inv.branch_name,
@@ -993,6 +1096,74 @@ app.post('/w/:token/order', publicLimit, async (req, res) => {
   } catch (e) {
     console.error('shop order failed:', e.message);
     res.status(500).json({ error: 'Could not place order.' });
+  }
+});
+
+// ── Platform activity feed (market study hub) ──────────────────
+// One timeline of EVERYTHING: data mutations (audit), auth decisions,
+// customer orders, and shop views — with user + business names resolved.
+// Powers the market Activity screen: who did what, on which item, when.
+app.get('/platform/activity', authRequired, requireRole('platform'), async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit || '150'), 10) || 150, 500);
+    const since = String(req.query.since || '');
+    const type = String(req.query.type || '');
+    const biz = String(req.query.business_id || '');
+    const params = [];
+    const wheres = [];
+    if (since) {
+      params.push(since);
+      wheres.push(`at >= $${params.length}`);
+    }
+    if (biz) {
+      params.push(biz);
+      wheres.push(`business_id = $${params.length}`);
+    }
+    if (['data', 'auth', 'order', 'view'].includes(type)) {
+      params.push(type);
+      wheres.push(`kind = $${params.length}`);
+    }
+    const filter = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
+    params.push(limit);
+    const r = await query(
+      `SELECT * FROM (
+        SELECT e.id::text, e.occurred_at AS at, 'data' AS kind,
+          (e.action_type || ' ' || e.entity_type) AS action,
+          e.business_id, e.actor_user_id AS user_id, u.name AS user_name,
+          b.name AS business_name, e.entity_id::text AS ref
+        FROM audit_events e
+        LEFT JOIN users u ON u.id = e.actor_user_id
+        LEFT JOIN businesses b ON b.id = e.business_id
+        UNION ALL
+        SELECT a.id::text, a.created_at AS at, 'auth' AS kind, a.action,
+          u.business_id, a.user_id, u.name,
+          b.name, NULL
+        FROM auth_audit a
+        LEFT JOIN users u ON u.id = a.user_id
+        LEFT JOIN businesses b ON b.id = u.business_id
+        UNION ALL
+        SELECT o.id::text, o.created_at AS at, 'order' AS kind,
+          ('order ' || o.status || ' · GHS ' || o.total) AS action,
+          o.business_id, NULL::uuid, COALESCE(o.customer_name, o.customer_phone),
+          b.name, o.id::text
+        FROM waitlist_orders o
+        LEFT JOIN businesses b ON b.id = o.business_id
+        UNION ALL
+        SELECT v.id::text, v.viewed_at AS at, 'view' AS kind,
+          ('shop viewed · ' || i.customer_phone) AS action,
+          v.business_id, i.created_by, u.name,
+          b.name, i.id::text
+        FROM shop_views v
+        JOIN waitlist_invites i ON i.id = v.invite_id
+        LEFT JOIN users u ON u.id = i.created_by
+        LEFT JOIN businesses b ON b.id = v.business_id
+      ) feed ${filter} ORDER BY at DESC LIMIT $${params.length}`,
+      params,
+    );
+    res.json({ data: r.rows });
+  } catch (e) {
+    console.error('platform activity failed:', e.message);
+    res.status(500).json({ error: 'Activity feed failed.' });
   }
 });
 

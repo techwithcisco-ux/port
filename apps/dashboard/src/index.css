@@ -4,7 +4,9 @@
 
 /* ═══════════════════════════════════════════════════════════════════
    🇬🇭  GHANA CULTURAL DESIGN SYSTEM  🇬🇭
-   Colors from the Ghana flag & Kente cloth
+   Colors from the Ghana flag & Kente cloth.
+   Tokens are duplicated in apps/pos and apps/market on purpose — each
+   app must stay self-contained (no cross-app CSS import at build time).
    ═══════════════════════════════════════════════════════════════════ */
 :root {
   /* Ghana Flag */
@@ -20,6 +22,32 @@
   /* Warm background tones */
   --cream: #FEFDF5;
   --sand: #E8DFC4;
+
+  /* Semantic layers derived from the above. Everything downstream should
+     reach for these rather than raw Tailwind grays — grays read cold
+     against the cream page and break the warm Ghana palette. */
+  --paper: #ffffff;
+  --paper-soft: #FBF9F1;
+  --ink: #1a1a2e;
+  --ink-soft: #4a4a5e;
+  --ink-mute: #7c7c8e;
+  --ink-faint: #a3a3b4;
+  --line: #EAE3CE;
+  --line-strong: #DBD2B4;
+
+  --green-tint: rgba(0, 107, 63, 0.07);
+  --green-ring: rgba(0, 107, 63, 0.14);
+  --gold-tint: rgba(252, 209, 22, 0.22);
+  --red-tint: rgba(206, 17, 38, 0.07);
+
+  --shadow-1: 0 1px 2px rgba(26, 26, 46, 0.05), 0 1px 3px rgba(26, 26, 46, 0.04);
+  --shadow-2: 0 1px 2px rgba(26, 26, 46, 0.05), 0 8px 24px -10px rgba(26, 26, 46, 0.14);
+  --shadow-3: 0 18px 50px -20px rgba(26, 26, 46, 0.35);
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
 }
 
 @layer base {
@@ -72,58 +100,87 @@
 @layer components {
   /* Typography ------------------------------------------------------ */
   .page-title {
-    @apply text-lg sm:text-xl font-bold tracking-tight text-gray-900;
-    letter-spacing: -0.02em;
+    @apply text-lg sm:text-[1.3rem] font-bold text-ink;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
   }
 
   .page-sub {
-    @apply mt-0.5 text-xs text-gray-500;
+    @apply mt-1 text-[13px] text-ink-mute;
   }
 
   .stat-label {
-    @apply text-[10px] sm:text-[11px] font-semibold uppercase tracking-widest text-gray-400;
+    @apply text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint;
   }
 
   .stat-value {
-    @apply text-xl sm:text-2xl font-semibold tracking-tight mt-1 text-gray-900 tabular-nums;
+    @apply text-xl sm:text-2xl font-bold tracking-tight mt-1.5 text-ink tabular-nums;
   }
 
   .stat-caption {
-    @apply mt-0.5 text-xs text-gray-400;
+    @apply mt-1 text-xs text-ink-mute;
   }
 
   /* Surfaces -------------------------------------------------------- */
   .card {
-    background: white;
-    border: 1px solid var(--sand);
-    @apply rounded-xl shadow-[0_1px_2px_rgba(17,24,39,0.04),0_1px_3px_rgba(17,24,39,0.06)];
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-1);
+    @apply transition-shadow;
   }
 
   .card-header {
-    @apply px-3 py-2 text-sm font-medium text-gray-500 border-b border-gray-100;
+    @apply px-4 py-3 text-[13px] font-semibold text-ink-soft border-b;
+    border-color: var(--line);
   }
 
   .card-hover {
-    @apply transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-[0_4px_12px_rgba(17,24,39,0.08)];
+    @apply transition-all duration-200;
+    box-shadow: var(--shadow-1);
+  }
+  .card-hover:hover {
+    box-shadow: var(--shadow-2);
+    border-color: var(--line-strong);
+    transform: translateY(-2px);
+  }
+
+  /* Warm inset surface — section dividers inside a page */
+  .panel {
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
   }
 
   /* Form controls --------------------------------------------------- */
   .label {
-    @apply block text-xs font-medium text-gray-500 mb-1.5;
+    @apply block text-xs font-semibold text-ink-mute mb-1.5;
+    letter-spacing: 0.01em;
   }
 
   .input,
   .select {
-    border: 2px solid var(--sand);
-    background: white;
-    @apply rounded-lg px-3.5 py-3 transition-all placeholder:text-gray-400 hover:border-[var(--kente-orange)] focus:border-[var(--ghana-green)] focus:outline-none focus:ring-4 focus:ring-[rgba(0,107,63,0.1)];
-    color: var(--ghana-black);
+    border: 2px solid var(--line);
+    background: var(--paper);
+    border-radius: var(--r-md);
+    color: var(--ink);
+    @apply px-3.5 py-3 transition-all duration-150 placeholder:text-ink-faint hover:border-line-strong focus:outline-none;
+    box-shadow: inset 0 1px 1px rgba(26, 26, 46, 0.03);
     min-height: 44px;
+  }
+  .input:hover,
+  .select:hover {
+    border-color: var(--line-strong);
+  }
+  .input:focus,
+  .select:focus {
+    border-color: var(--ghana-green);
+    box-shadow: 0 0 0 4px var(--green-ring);
   }
 
   .select {
     @apply pr-9;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237c7c8e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.75rem center;
     appearance: none;
@@ -131,43 +188,64 @@
 
   /* Buttons --------------------------------------------------------- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98] focus:outline-none focus-visible:ring-4 focus-visible:ring-gray-900/10;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus-visible:ring-4 focus-visible:ring-ghana-green/20;
     /* Mobile: minimum 44px touch target */
     min-height: 44px;
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: 18px;
+    padding-right: 18px;
+    letter-spacing: -0.005em;
+  }
+  .btn:not(:disabled):active {
+    transform: translateY(1px) scale(0.99);
   }
 
   .btn-primary {
     background: var(--ghana-green);
-    color: white;
-    @apply hover:opacity-90 shadow-[0_1px_2px_rgba(0,107,63,0.25)];
+    color: #fff;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.16) inset, 0 8px 20px -12px rgba(0, 107, 63, 0.9);
+  }
+  .btn-primary:not(:disabled):hover {
+    background: #007A4A;
   }
 
   .btn-gold {
     background: var(--ghana-gold);
-    color: var(--ghana-black);
-    @apply hover:opacity-90 font-bold;
+    color: var(--ink);
+    @apply font-bold;
+    box-shadow: 0 8px 20px -14px rgba(252, 209, 22, 1);
+  }
+  .btn-gold:not(:disabled):hover {
+    background: #FFD92E;
   }
 
   .btn-red {
     background: var(--ghana-red);
-    color: white;
-    @apply hover:opacity-90;
+    color: #fff;
+    box-shadow: 0 8px 20px -14px rgba(206, 17, 38, 1);
   }
 
   .btn-outline {
-    @apply border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900;
+    background: var(--paper);
+    border: 1.5px solid var(--line-strong);
+    color: var(--ink-soft);
+  }
+  .btn-outline:not(:disabled):hover {
+    background: var(--paper-soft);
+    border-color: var(--ink-faint);
+    color: var(--ink);
   }
 
   /* Small buttons (for inline actions) */
   .btn-sm {
-    @apply min-h-[36px] px-3 py-1.5 text-xs;
+    @apply min-h-[36px] px-3 py-1.5 text-xs rounded-lg;
   }
 
   /* Segmented control --------------------------------------------- */
   .seg {
-    @apply inline-flex items-center gap-0.5 rounded-lg bg-gray-100 p-1;
+    @apply inline-flex items-center gap-0.5 p-1;
+    background: #F7F2E3;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
     /* Mobile: full width when in a flex container */
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -176,47 +254,79 @@
   .seg::-webkit-scrollbar { display: none; }
 
   .seg .pill {
-    @apply border-0 bg-transparent text-gray-500 font-medium rounded-md px-3 py-2 text-sm transition-colors hover:bg-white/70 hover:text-gray-800 whitespace-nowrap;
+    @apply border-0 font-medium px-3.5 py-2 text-[13px] transition-colors whitespace-nowrap;
+    background: transparent;
+    color: var(--ink-mute);
+    border-radius: 9px;
     /* Mobile: ensure touch target */
     min-height: 36px;
     flex-shrink: 0;
   }
-
-  .seg .pill-active {
-    @apply bg-white text-gray-900 shadow-[0_1px_2px_rgba(17,24,39,0.12),0_0_0_1px_rgba(17,24,39,0.03)] hover:bg-white hover:text-gray-900;
+  .seg .pill:hover {
+    color: var(--ink-soft);
+    background: rgba(255, 255, 255, 0.7);
   }
 
   /* Standalone pills (tags/badges outside a seg) ------------------ */
   .pill {
-    @apply px-3 py-1.5 rounded-lg text-sm border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50;
+    @apply px-3 py-1.5 text-sm font-medium transition-colors;
+    background: var(--paper);
+    border: 1.5px solid var(--line);
+    color: var(--ink-soft);
+    border-radius: 999px;
     min-height: 32px;
     flex-shrink: 0;
   }
+  .pill:hover {
+    background: var(--paper-soft);
+    border-color: var(--line-strong);
+  }
 
-  .pill-active {
-    @apply bg-gray-900 text-white border-gray-900 hover:bg-gray-800;
+  .pill-active,
+  .pill-active:hover {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+  }
+
+  /* Inside a segmented control the active chip lifts off the warm
+     track instead of filling with ink. Declared after the standalone
+     rules; the extra class wins on specificity, so no !important. */
+  .seg .pill-active,
+  .seg .pill-active:hover {
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(26, 26, 46, 0.1), 0 0 0 1px rgba(26, 26, 46, 0.05);
   }
 
   /* Navigation (dark sidebar) ------------------------------------- */
   .nav-section {
-    @apply px-3 pb-2 pt-6 text-[10px] font-semibold uppercase tracking-widest text-gray-500;
+    @apply px-3 pb-2 pt-6 text-[10px] font-semibold uppercase tracking-widest;
+    color: rgba(255, 255, 255, 0.42);
   }
 
   .nav-link {
-    @apply flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/[0.06] hover:text-white;
-    /* Mobile: bigger touch target */
-    min-height: 36px;
+    @apply flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors;
+    color: rgba(255, 255, 255, 0.72);
+    min-height: 38px;
+  }
+  .nav-link:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
   }
 
   .nav-link-active {
     background: var(--ghana-gold) !important;
-    color: var(--ghana-black) !important;
+    color: var(--ink) !important;
     @apply font-bold;
+    box-shadow: 0 6px 18px -10px rgba(252, 209, 22, 1);
   }
 
   /* Tables & tags --------------------------------------------------- */
   .table-head {
-    @apply px-4 sm:px-5 py-2.5 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-gray-400;
+    @apply px-4 sm:px-5 py-3 text-left text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider;
+    color: var(--ink-faint);
   }
 
   /* Mobile-friendly table wrapper */
@@ -230,11 +340,14 @@
   }
 
   .tag {
-    @apply inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600;
+    @apply inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold;
+    background: var(--green-tint);
+    color: var(--ghana-green);
   }
 
   .tag-warn {
-    @apply bg-gray-900 text-white;
+    background: rgba(212, 98, 27, 0.12) !important;
+    color: var(--kente-orange) !important;
   }
 }
 
@@ -285,13 +398,19 @@
 /* Mobile grid: auto-collapse 2-col grids to 1-col on small screens */
 @media (max-width: 640px) {
   .grid-cols-2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 }
 
-/* Ensure all tables are horizontally scrollable on mobile */
+/* Ensure all tables are horizontally scrollable on mobile.
+   `display: block` turns the table into a scroll container so wide tables
+   (AuditLog, MarketIntelligence, TradingAccount…) can be panned instead of
+   blowing the page out sideways. Normal table layout is restored above 768px. */
 @media (max-width: 768px) {
   table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     font-size: 13px;
   }
   .table-head {

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { startSyncLoop, pullLatestCatalog } from './lib/sync';
 import Login from './routes/Login';
@@ -8,6 +8,8 @@ import Sell from './routes/Sell';
 import Dashboard from './routes/Dashboard';
 import InvoiceHistory from './routes/InvoiceHistory';
 import PosBalanceSheet from './routes/PosBalanceSheet';
+import CalculatorPage from './routes/CalculatorPage';
+import SyncPage from './routes/SyncPage';
 import AssistiveTouch from './components/AssistiveTouch';
 
 // Pulls the catalog once on login and starts the online/offline sync
@@ -36,11 +38,11 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
   if (!authUserId || !profile) return <Navigate to="/login" replace />;
-  // The POS is staff-only. A manager/owner account can still authenticate
-  // here (login succeeds before the app role is checked), but this app has
-  // no use for them — send them back to login rather than into a screen
-  // built around a branch_id they don't have.
-  if (profile.role !== 'staff' || !profile.branch_id) {
+  // The till is branch-scoped, not role-scoped: any account bound to a
+  // branch may sell here — the owner from "Main Store" (created at
+  // signup), a manager from the branch they were assigned. An account
+  // with no branch has no stock to sell, so it goes back to sign-in.
+  if (!profile.branch_id) {
     return <Navigate to="/login" replace />;
   }
   return <SyncBoundary>{children}</SyncBoundary>;
@@ -51,6 +53,24 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 // follow whatever base Vite compiled with instead of hardcoding the path.
 const viteBase = import.meta.env.BASE_URL || '/';
 const routerBasename = viteBase !== '/' ? viteBase.replace(/\/$/, '') : undefined;
+
+function NotFound() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6">
+      <div className="w-full max-w-sm rounded-3xl border border-gray-200/80 bg-white p-7 text-center shadow-[0_8px_30px_rgba(17,24,39,0.08)]">
+        <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gray-900 text-lg font-black text-white">B</div>
+        <h1 className="text-lg font-bold text-gray-900">Page not found</h1>
+        <p className="mt-1 text-sm text-gray-500">That screen does not exist on this till.</p>
+        <Link
+          to="/"
+          className="mt-5 inline-flex w-full justify-center rounded-2xl bg-gray-900 py-3 text-sm font-semibold text-white active:scale-[0.99]"
+        >
+          Back to the till
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -91,6 +111,24 @@ export default function App() {
               </RequireAuth>
             }
           />
+          <Route
+            path="/calculator"
+            element={
+              <RequireAuth>
+                <CalculatorPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/sync"
+            element={
+              <RequireAuth>
+                <SyncPage />
+              </RequireAuth>
+            }
+          />
+          {/* No catch-all meant an unknown URL rendered a blank white page. */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

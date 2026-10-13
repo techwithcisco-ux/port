@@ -1,6 +1,7 @@
 import { useEffect, useState, FormEvent } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
+import { ListSkeleton } from '../../components/ListState';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../lib/api';
 import type { Supplier, InventoryIntake, Product, SupplierPayment, SupplierReconciliation } from '@branchport/shared';
@@ -35,20 +36,25 @@ export default function Suppliers() {
   const [payAmt, setPayAmt] = useState('');
   const [payNote, setPayNote] = useState('');
   const [payBusy, setPayBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   async function refresh() {
-    const [s, i, p, pm, rc] = await Promise.all([
-      api.from('suppliers').select('*').order('name'),
-      api.from('inventory_intake').select('*').order('created_at', { ascending: false }),
-      api.from('products').select('*'),
-      api.from('supplier_payments').select('*').order('paid_at', { ascending: false }),
-      api.from('supplier_reconciliations').select('*').order('reconciled_at', { ascending: false }),
-    ]);
-    setSuppliers((s.data as Supplier[]) ?? []);
-    setIntakes((i.data as InventoryIntake[]) ?? []);
-    setProducts((p.data as Product[]) ?? []);
-    setPayments((pm.data as SupplierPayment[]) ?? []);
-    setReconciliations((rc.data as SupplierReconciliation[]) ?? []);
+    try {
+      const [s, i, p, pm, rc] = await Promise.all([
+        api.from('suppliers').select('*').order('name'),
+        api.from('inventory_intake').select('*').order('created_at', { ascending: false }),
+        api.from('products').select('*'),
+        api.from('supplier_payments').select('*').order('paid_at', { ascending: false }),
+        api.from('supplier_reconciliations').select('*').order('reconciled_at', { ascending: false }),
+      ]);
+      setSuppliers((s.data as Supplier[]) ?? []);
+      setIntakes((i.data as InventoryIntake[]) ?? []);
+      setProducts((p.data as Product[]) ?? []);
+      setPayments((pm.data as SupplierPayment[]) ?? []);
+      setReconciliations((rc.data as SupplierReconciliation[]) ?? []);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -143,9 +149,10 @@ export default function Suppliers() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <h1 className="page-title mb-1">Suppliers</h1>
-      <p className="page-sub mb-3">Ledger balances, payments and reconciliation — all derived, never hand-held.</p>
+      <PageHeader
+        title="Suppliers"
+        subtitle="Ledger balances, payments and reconciliation — all derived, never hand-held."
+      />
 
       <div className="grid gap-3 lg:grid-cols-2 max-w-5xl">
         <form onSubmit={handleAdd} className="card p-4 space-y-2 h-fit">
@@ -169,7 +176,7 @@ export default function Suppliers() {
 
         <div className="card overflow-hidden">
           <div className="px-4 py-2 border-b border-gray-100">
-            <p className="text-sm font-medium text-gray-500">Suppliers ({visibleSuppliers.length}{search ? ` of ${suppliers.length}` : ''})</p>
+            <p className="text-sm font-medium text-gray-500">Suppliers ({loading ? '…' : visibleSuppliers.length}{search ? ` of ${suppliers.length}` : ''})</p>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -177,7 +184,9 @@ export default function Suppliers() {
               className="input w-full mt-2"
             />
           </div>
-          {visibleSuppliers.length === 0 ? (
+          {loading ? (
+            <div className="p-4"><ListSkeleton rows={3} /></div>
+          ) : visibleSuppliers.length === 0 ? (
             <p className="p-4 text-gray-500 text-sm">{search ? 'No suppliers match that name.' : 'No suppliers yet.'}</p>
           ) : (
             <ul className="divide-y">

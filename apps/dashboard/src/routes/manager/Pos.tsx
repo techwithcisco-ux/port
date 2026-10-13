@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
+import PageHeader from '../../components/PageHeader';
+import { ListSkeleton } from '../../components/ListState';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, Product, ProductVariant } from '@branchport/shared';
@@ -40,6 +42,7 @@ export default function Pos() {
   const [allocationQty, setAllocationQty] = useState('');
   const [allocating, setAllocating] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function refreshBranchData(branchId: string) {
     const [{ data: allocs }, { data: salesData }] = await Promise.all([
@@ -53,32 +56,36 @@ export default function Pos() {
 
   useEffect(() => {
     async function loadInitialData() {
-      const [{ data: branchRows }, { data: productRows }, { data: variantRows }] = await Promise.all([
-        api.from('branches').select('*').order('name', { ascending: true }),
-        api.from('products').select('*').order('created_at', { ascending: true }),
-        api.from('product_variants').select('*'),
-      ]);
+      try {
+        const [{ data: branchRows }, { data: productRows }, { data: variantRows }] = await Promise.all([
+          api.from('branches').select('*').order('name', { ascending: true }),
+          api.from('products').select('*').order('created_at', { ascending: true }),
+          api.from('product_variants').select('*'),
+        ]);
 
-      const branchesList = (branchRows as Branch[] | null) ?? [];
-      const variantsByProduct = new Map<string, ProductVariant[]>();
-      for (const v of (variantRows as ProductVariant[] | null) ?? []) {
-        const list = variantsByProduct.get(v.product_id) ?? [];
-        list.push(v);
-        variantsByProduct.set(v.product_id, list);
-      }
-      const productList = ((productRows as Product[] | null) ?? []).map((p) => ({
-        ...p,
-        variants: (variantsByProduct.get(p.id) ?? []).sort((a, b) => a.sort_order - b.sort_order),
-      }));
+        const branchesList = (branchRows as Branch[] | null) ?? [];
+        const variantsByProduct = new Map<string, ProductVariant[]>();
+        for (const v of (variantRows as ProductVariant[] | null) ?? []) {
+          const list = variantsByProduct.get(v.product_id) ?? [];
+          list.push(v);
+          variantsByProduct.set(v.product_id, list);
+        }
+        const productList = ((productRows as Product[] | null) ?? []).map((p) => ({
+          ...p,
+          variants: (variantsByProduct.get(p.id) ?? []).sort((a, b) => a.sort_order - b.sort_order),
+        }));
 
-      setBranches(branchesList);
-      setProducts(productList);
+        setBranches(branchesList);
+        setProducts(productList);
 
-      const defaultBranch = profile?.branch_id ?? branchesList[0]?.id ?? '';
-      setSelectedBranchId(defaultBranch);
+        const defaultBranch = profile?.branch_id ?? branchesList[0]?.id ?? '';
+        setSelectedBranchId(defaultBranch);
 
-      if (defaultBranch) {
-        void refreshBranchData(defaultBranch);
+        if (defaultBranch) {
+          void refreshBranchData(defaultBranch);
+        }
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -216,19 +223,18 @@ export default function Pos() {
 
   return (
     <DashboardLayout>
+      <PageHeader
+        title="Market POS"
+        subtitle="Informal market sales"
+        right={
+          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+            {cart.length} item{cart.length === 1 ? '' : 's'}
+          </span>
+        }
+      />
       <div className="mx-auto max-w-md space-y-2 pb-2">
         <div className="card p-3 sm:p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h1 className="page-title text-xl">Market POS</h1>
-              <p className="page-sub mt-0 text-xs">Informal market sales</p>
-            </div>
-            <div className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-              {cart.length} item{cart.length === 1 ? '' : 's'}
-            </div>
-          </div>
-
-          <div className="mt-3">
+          <div className="mt-0">
             <label className="label">My shop / branch</label>
             <select
               value={selectedBranchId}
@@ -376,7 +382,9 @@ export default function Pos() {
             <div className="card overflow-hidden">
               <div className="card-header">Products</div>
               <div className="grid max-h-[420px] grid-cols-2 gap-2 overflow-y-auto p-2">
-                {filtered.length === 0 ? (
+                {loading ? (
+                  <div className="col-span-2 p-2"><ListSkeleton rows={6} height="h-20" /></div>
+                ) : filtered.length === 0 ? (
                   <p className="col-span-2 p-4 text-sm text-gray-500">No products match.</p>
                 ) : (
                   filtered.map((product) => {

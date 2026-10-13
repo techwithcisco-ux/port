@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { ColorLegend, StatusBadge, ColorStatCard, BarMeter } from '../../components/Visuals';
 import { api } from '../../lib/api';
@@ -244,13 +244,10 @@ export default function Ledger() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div>
-        <div>
-          <h1 className="page-title">📒 Debtors & Creditors</h1>
-          <p className="page-sub">Who owes you, who you owe — colors show how urgent it is.</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Debtors & Creditors"
+        subtitle="Who owes you, who you owe — colors show how urgent it is."
+      />
 
       <ColorLegend items={[
         { color: 'bg-green-500', label: 'Recent / Settled' },

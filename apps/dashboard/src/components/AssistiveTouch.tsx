@@ -2,11 +2,16 @@ import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { loadFeatureConfig, isFeatureEnabled, type FeatureKey } from '@branchport/shared';
-import { IconCart, IconCurrency, IconTeam, IconSettings, IconReceipt, IconShop } from './Icons';
-import { Nsoromma, Aya, Dwennimmen, NkrumahSilhouette } from './AdinkraSymbols';
+import {
+  IconCart, IconCurrency, IconTeam, IconSettings, IconReceipt, IconShop,
+  IconSupplier, IconBox, IconProfit, IconCost, IconShield, IconPerson,
+  IconChart, IconTag, IconInvite, IconDocument, IconReconcile, IconScale, IconList,
+  AdinkraHome, AdinkraAllocate, AdinkraAlert, AdinkraAudit,
+} from './Icons';
+import { Nsoromma, Aya, NkrumahSilhouette } from './AdinkraSymbols';
 import InstallBanner from './InstallBanner';
 
-// ─── Menu data (was the sidebar/drawer) ─────────────────────────
+// ─── Menu data ──────────────────────────────────────────────────
 type ViewMode = 'owner' | 'manager';
 const VIEW_MODE_KEY = 'branchport-view-mode';
 const POS_KEY = 'branchport-at-pos';
@@ -19,20 +24,41 @@ interface NavLink {
 }
 
 const managerLinks: NavLink[] = [
-  { to: '/manager/pos', label: 'Tua (Sell)', icon: <IconCart size={18} /> },
-  { to: '/manager/stock', label: 'Aduane (Stock)', icon: <Aya size={18} /> },
-  { to: '/manager/money', label: 'Sika (Money)', icon: <IconCurrency size={18} /> },
-  { to: '/manager/team', label: 'Adwo (Team)', icon: <IconTeam size={18} /> },
-  { to: '/manager/waitlist', label: 'Waitlist (Orders)', icon: <IconShop size={18} /> },
+  { to: '/manager', label: 'Home', icon: <AdinkraHome size={24} /> },
+  { to: '/manager/pos', label: 'Sell', icon: <IconCart size={24} /> },
+  { to: '/manager/stock', label: 'Stock', icon: <Aya size={24} /> },
+  { to: '/manager/money', label: 'Money', icon: <IconCurrency size={24} /> },
+  { to: '/manager/team', label: 'Team', icon: <IconTeam size={24} /> },
+  { to: '/manager/products', label: 'Products', icon: <IconTag size={24} /> },
+  { to: '/manager/intake', label: 'Stock Intake', icon: <IconShop size={24} /> },
+  { to: '/manager/allocation', label: 'Allocation', icon: <AdinkraAllocate size={24} /> },
+  { to: '/manager/suppliers', label: 'Suppliers', icon: <IconSupplier size={24} /> },
+  { to: '/manager/stock-balance', label: 'Stock Balance', icon: <IconBox size={24} />, feature: 'stock_balance_overview' },
+  { to: '/manager/sales-report', label: 'Sales Report', icon: <IconChart size={24} />, feature: 'manager_sales_report' },
+  { to: '/manager/profit-loss', label: 'Profit & Loss', icon: <IconProfit size={24} />, feature: 'manager_profit_loss' },
+  { to: '/manager/expenses', label: 'Expenses', icon: <IconCost size={24} />, feature: 'manager_expenses' },
+  { to: '/manager/ledger', label: 'Ledger', icon: <IconReceipt size={24} />, feature: 'manager_ledger' },
+  { to: '/manager/reconciliation', label: 'Reconcile', icon: <IconReconcile size={24} /> },
+  { to: '/manager/waitlist', label: 'Waitlist', icon: <IconList size={24} /> },
+  { to: '/manager/documents', label: 'Documents', icon: <IconDocument size={24} /> },
+  { to: '/manager/staff', label: 'Staff & Invites', icon: <IconInvite size={24} /> },
 ];
 
 const ownerLinks: NavLink[] = [
-  { to: '/owner/stores', label: 'Dzi wo fi (Stores)', icon: <Nsoromma size={18} /> },
-  { to: '/owner/money', label: 'Sika Data', icon: <IconCurrency size={18} /> },
-  { to: '/owner/team', label: 'Adwo (Team)', icon: <IconTeam size={18} /> },
-  { to: '/owner/audit-log', label: 'Nsusuwii (Audit)', icon: <Dwennimmen size={18} /> },
-  { to: '/owner/account', label: 'Account', icon: <IconReceipt size={18} /> },
-  { to: '/owner/features', label: 'Nhyehyee (Settings)', icon: <IconSettings size={18} /> },
+  { to: '/owner', label: 'Home', icon: <AdinkraHome size={24} /> },
+  { to: '/owner/stores', label: 'Stores', icon: <Nsoromma size={24} /> },
+  { to: '/owner/products', label: 'Products', icon: <IconTag size={24} /> },
+  { to: '/owner/money', label: 'Money', icon: <IconCurrency size={24} /> },
+  { to: '/owner/team', label: 'Team', icon: <IconTeam size={24} /> },
+  { to: '/owner/stock-allocation', label: 'Allocation', icon: <AdinkraAllocate size={24} /> },
+  { to: '/owner/balance-sheet', label: 'Balance Sheet', icon: <IconScale size={24} />, feature: 'owner_balance_sheet' },
+  { to: '/owner/trading-account', label: 'Trading Account', icon: <IconCost size={24} />, feature: 'owner_trading_account' },
+  { to: '/owner/intelligence', label: 'Market', icon: <IconChart size={24} />, feature: 'owner_market_intelligence' },
+  { to: '/owner/flags', label: 'Pricing Flags', icon: <AdinkraAlert size={24} />, feature: 'owner_flags' },
+  { to: '/owner/managers', label: 'Managers', icon: <IconShield size={24} />, feature: 'owner_managers' },
+  { to: '/owner/audit-log', label: 'Audit Log', icon: <AdinkraAudit size={24} />, feature: 'owner_audit_log' },
+  { to: '/owner/account', label: 'Account', icon: <IconPerson size={24} /> },
+  { to: '/owner/features', label: 'Settings', icon: <IconSettings size={24} /> },
 ];
 
 // ─── Floating button ────────────────────────────────────────────
@@ -81,9 +107,9 @@ function TouchIcon({ open }: { open: boolean }) {
   );
 }
 
-// ─── Menu ───────────────────────────────────────────────────────
+// ─── Menu (iPhone-style home grid) ──────────────────────────────
 export default function AssistiveTouch() {
-  const { profile, signOut } = useAuth();
+  const { profile, authUserId, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -103,8 +129,8 @@ export default function AssistiveTouch() {
   const isOwner = profile?.role === 'owner';
   const showOwnerSection = isOwner && mode === 'owner';
   const config = useMemo(
-    () => loadFeatureConfig((profile?.role as 'owner' | 'manager' | 'staff') ?? 'manager'),
-    [profile?.role],
+    () => loadFeatureConfig((profile?.role as 'owner' | 'manager' | 'staff') ?? 'manager', profile?.id ?? authUserId),
+    [profile?.role, profile?.id, authUserId],
   );
   const visibleOwner = ownerLinks.filter((l) => !l.feature || isFeatureEnabled(config, l.feature));
   const visibleManager = managerLinks.filter((l) => !l.feature || isFeatureEnabled(config, l.feature));
@@ -122,7 +148,7 @@ export default function AssistiveTouch() {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open ]);
+  }, [open]);
 
   function onPointerDown(e: React.PointerEvent) {
     drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y, moved: false };
@@ -153,39 +179,45 @@ export default function AssistiveTouch() {
   const vw = typeof window === 'undefined' ? 400 : window.innerWidth;
   const vh = typeof window === 'undefined' ? 800 : window.innerHeight;
   const openUp = pos.y + BTN / 2 > vh / 2;
-  const panelW = Math.min(320, vw - 24);
+  const panelW = Math.min(360, vw - 24);
   const panelX = Math.min(Math.max(12, pos.x + BTN / 2 - panelW / 2), Math.max(12, vw - panelW - 12));
 
-  function renderLinks(links: NavLink[], offset: number) {
-    return links.map((link, i) => {
-      const active = location.pathname === link.to;
-      return (
-        <Link
-          key={link.to}
-          to={link.to}
-          role="menuitem"
-          onClick={close}
-          className={`flex items-center gap-3 rounded-2xl px-3 transition-colors ${
-            active ? 'text-white' : 'text-gray-700 active:bg-gray-100'
-          }`}
-          style={{
-            minHeight: 54,
-            background: active ? 'var(--ghana-black)' : undefined,
-            animation: 'assistive-pop 0.18s ease both',
-            animationDelay: `${(offset + i) * 22}ms`,
-          }}
-        >
-          <span
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-            style={{ background: active ? 'var(--ghana-gold)' : '#f3f4f6', color: active ? 'var(--ghana-black)' : '#374151' }}
-          >
-            {link.icon}
-          </span>
-          <span className="flex-1 text-sm font-medium">{link.label}</span>
-          {active && <span className="text-xs" style={{ color: 'var(--ghana-gold)' }}>●</span>}
-        </Link>
-      );
-    });
+  function renderGrid(links: NavLink[], offset: number) {
+    return (
+      <div className="grid grid-cols-4 gap-x-1 gap-y-2 px-1 pt-1">
+        {links.map((link, i) => {
+          const active = location.pathname === link.to
+            || (link.to !== '/manager' && link.to !== '/owner' && location.pathname.startsWith(link.to + '/'));
+          return (
+            <Link
+              key={link.to}
+              to={link.to}
+              role="menuitem"
+              onClick={close}
+              className="flex flex-col items-center gap-1.5 rounded-2xl px-1 py-2 transition-colors active:bg-gray-100"
+              style={{ animation: 'assistive-pop 0.18s ease both', animationDelay: `${(offset + i) * 16}ms` }}
+            >
+              <span
+                className="grid h-14 w-14 place-items-center rounded-[18px] transition-colors"
+                style={{
+                  background: active ? 'var(--ghana-black)' : '#f3f4f6',
+                  color: active ? 'var(--ghana-gold)' : '#374151',
+                  boxShadow: active ? '0 6px 16px rgba(17,24,39,0.25)' : 'inset 0 0 0 1px rgba(0,0,0,0.04)',
+                }}
+              >
+                {link.icon}
+              </span>
+              <span
+                className="w-full text-center text-[10px] font-medium leading-tight"
+                style={{ color: active ? 'var(--ghana-black)' : '#4b5563' }}
+              >
+                {link.label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    );
   }
 
   return (
@@ -208,7 +240,7 @@ export default function AssistiveTouch() {
           style={{
             left: panelX,
             width: panelW,
-            maxHeight: '70vh',
+            maxHeight: '75vh',
             overflowY: 'auto',
             ...(openUp
               ? { bottom: Math.max(8, vh - pos.y + 12) }
@@ -221,18 +253,18 @@ export default function AssistiveTouch() {
             {showOwnerSection && (
               <>
                 <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-                  Okradi / Owner
+                  Owner
                 </p>
-                {renderLinks(visibleOwner, 0)}
+                {renderGrid(visibleOwner, 0)}
               </>
             )}
             <p className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-              {showOwnerSection ? 'Dwa (Operations)' : 'Tem (Manage)'}
+              {showOwnerSection ? 'Operations' : 'Menu'}
             </p>
-            {renderLinks(visibleManager, visibleOwner.length)}
+            {renderGrid(visibleManager, visibleOwner.length)}
 
             {isOwner && (
-              <div className="mt-2 rounded-2xl bg-gray-50 p-2">
+              <div className="mt-3 rounded-2xl bg-gray-50 p-2">
                 <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">View as</p>
                 <div className="grid grid-cols-2 gap-1 rounded-xl bg-gray-200/60 p-1">
                   {(['owner', 'manager'] as ViewMode[]).map((m) => (

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { ColorLegend, StatusBadge, ColorStatCard, BarMeter } from '../../components/Visuals';
 import { api } from '../../lib/api';
@@ -79,17 +79,16 @@ export default function BalanceSheet() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <div>
-        <div>
-          <h1 className="page-title">📊 Balance Sheet</h1>
-          <p className="page-sub">Professional statement of financial position — colors tell the story.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="label mb-0">As of</label>
-          <input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="select" />
-        </div>
-      </div>
+      <PageHeader
+        title="Balance Sheet"
+        subtitle="Professional statement of financial position — colors tell the story."
+        right={
+          <div className="flex items-center gap-3">
+            <label className="label mb-0">As of</label>
+            <input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="select" />
+          </div>
+        }
+      />
 
       <ColorLegend items={[
         { color: 'bg-blue-500', label: 'Assets (what you own)' },

@@ -60,8 +60,11 @@ export function calculateBusinessAnalytics(
     const allocated = allocations
       .filter((allocation) => allocation.product_id === product.id)
       .reduce((sum, allocation) => sum + Number(allocation.retail_quantity_equivalent), 0);
+    // Variant-aware base-unit conversion — must match the cost formula below
+    // (saleBaseUnits), not the naive unit_type check, or multi-unit variants
+    // (e.g. a 30-unit bag) silently mismatch remaining-stock vs COGS math.
     const soldRetailUnits = productSales.reduce(
-      (sum, sale) => sum + Number(sale.quantity) * (sale.unit_type === 'bulk' ? product.units_per_bulk : 1),
+      (sum, sale) => sum + Number(sale.quantity) * saleBaseUnits(product, sale),
       0
     );
     const remainingUnits = Math.max(allocated - soldRetailUnits, 0);

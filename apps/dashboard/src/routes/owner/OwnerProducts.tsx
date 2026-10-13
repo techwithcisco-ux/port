@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import PageHeader from '../../components/PageHeader';
 import { api } from '../../lib/api';
 import type { Product, InventoryIntake, Supplier } from '@branchport/shared';
+import { productImageSrc } from '@branchport/shared';
 import { formatGHS } from '../../lib/utils';
 
 export default function OwnerProducts() {
@@ -36,10 +38,10 @@ export default function OwnerProducts() {
 
   return (
     <DashboardLayout>
-      <div className="mb-3">
-        <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-        <p className="text-sm text-gray-500 mt-1">All products, recent stock intake, and suppliers.</p>
-      </div>
+      <PageHeader
+        title="Products"
+        subtitle="All products, recent stock intake, and suppliers."
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -76,7 +78,7 @@ export default function OwnerProducts() {
             <div key={p.id} className="px-6 py-2 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {p.image ? (
-                  <img src={`data:image/jpeg;base64,${p.image}`} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-200 flex-shrink-0" />
+                  <img src={productImageSrc(p.image)} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-200 flex-shrink-0" />
                 ) : (
                   <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-xl text-gray-400 flex-shrink-0">📦</div>
                 )}
@@ -150,7 +152,7 @@ export default function OwnerProducts() {
           <span className="text-sm font-medium text-gray-900">Add Product</span>
         </Link>
         <Link
-          to="/manager/inventory"
+          to="/manager/intake"
           className="bg-white border border-gray-200 rounded-2xl p-4 text-center hover:border-gray-900 transition-all"
         >
           <span className="text-2xl block mb-2">📥</span>

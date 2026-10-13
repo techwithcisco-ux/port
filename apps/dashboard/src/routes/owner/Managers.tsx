@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import BackButton from '../../components/BackButton';
+import PageHeader from '../../components/PageHeader';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../lib/api';
@@ -225,11 +225,10 @@ export default function Managers() {
 
   return (
     <DashboardLayout>
-      <BackButton />
-      <h1 className="page-title mb-1">Assign managers</h1>
-      <p className="page-sub mb-3">
-        Add team members as managers so they can run the dashboard, POS and supplier ledger on your behalf.
-      </p>
+      <PageHeader
+        title="Assign managers"
+        subtitle="Add team members as managers so they can run the dashboard, POS and supplier ledger on your behalf."
+      />
 
       {/* ── Self-assign card ── */}
       {!isSelfAssigned && (

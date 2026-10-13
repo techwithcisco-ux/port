@@ -144,7 +144,7 @@ Postgres-reachable) API — the frontends have no local backend.
 | `JWT_REFRESH_DAYS` | apps/api     | Refresh-token lifetime in days (default `30`, rotating) |
 | `MARKET_ADMIN_PASS`| apps/api     | Admin password for market analytics |
 | `VITE_API_URL`     | all frontends| Base URL of the API (default `http://localhost:8080`) |
-| `VITE_POS_URL`     | dashboard    | Deployed POS URL shown on the staff notice screen |
+| `VITE_POS_URL`     | dashboard    | Deployed POS URL shown on the welcome + staff notice screens |
 | `VITE_BASE`        | pos, market  | Vite base path for standalone deploys (`/` = site root) |
 
 `.env` files are git-ignored — never commit real credentials.

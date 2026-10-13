@@ -94,8 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /** POS sign-in. Phone + password are ALWAYS required (no passwordless
-   *  path); the server also enforces POS-only roles. This adds the branch
-   *  check the till itself needs. */
+   *  path); the server checks the role allowlist. The till itself only
+   *  cares that the account has a branch to sell from. */
   async function signInWithPhone(phone: string, password?: string) {
     const cleanPhone = normalisePhone(phone);
     if (!cleanPhone) {

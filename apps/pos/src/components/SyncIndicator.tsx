@@ -8,14 +8,15 @@ import { ghFormatTime } from '@branchport/shared';
 // last-synced time, and a manual Retry now button (the background loop
 // already retries every 30s — this is for the impatient or the stuck).
 export default function SyncIndicator({ compact = false }: { compact?: boolean }) {
-  // Outbound queue: unsynced sales + any invoice/debtor still pending its
+  // Outbound queue: unsynced sales + any invoice/debtor/payment still pending its
   // server copy (offline credit sale, dropped upsert, etc.).
   const queuedCount = useLiveQuery(
     async () => {
       const sales = await db.sales.filter((s) => !s.synced).count();
       const invoices = await db.invoices.filter((i) => i.serverSynced !== true).count();
       const debtors = await db.debtors.filter((d) => d.serverSynced !== true).count();
-      return sales + invoices + debtors;
+      const debtorPays = await db.debtor_payments.filter((d) => d.serverSynced !== true).count();
+      return sales + invoices + debtors + debtorPays;
     },
     [],
   ) ?? 0;

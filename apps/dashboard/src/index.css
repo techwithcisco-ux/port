@@ -870,3 +870,53 @@
   border-radius: 999px;
   background: linear-gradient(90deg, #CE1126, #FCD116, #006B3F);
 }
+
+
+/* -----------------------------------------------------------------------
+   BRANCH VESSEL — organic calabash funnel for store performance.
+   The liquid colour is driven by the shop's health score (see
+   lib/branchHealth.ts); these keyframes animate the surface, bubbles
+   and a slow living sway so the vessel never looks like a static bar.
+   ----------------------------------------------------------------------- */
+
+/* Front liquid surface — travels two full wave periods then loops. */
+@keyframes bv-wave-front {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-120px); }
+}
+
+/* Back liquid surface — same period, slower, offset so they never sync. */
+@keyframes bv-wave-back {
+  from { transform: translateX(-40px); }
+  to   { transform: translateX(-160px); }
+}
+
+/* Rising bubbles inside the liquid. */
+@keyframes bv-bubble {
+  0%   { transform: translateY(0);     opacity: 0; }
+  12%  { opacity: 0.7; }
+  80%  { opacity: 0.4; }
+  100% { transform: translateY(-72px); opacity: 0; }
+}
+
+/* A whole-vessel breath — barely perceptible, but it reads as alive. */
+@keyframes bv-sway {
+  from { transform: rotate(-1.4deg); }
+  to   { transform: rotate(1.4deg); }
+}
+
+/* Gentle pulse on the halo while the shop is thriving. */
+@keyframes bv-halo {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%      { opacity: 0.6;  transform: scale(1.045); }
+}
+
+.bv-sway { animation: bv-sway 6.5s ease-in-out infinite alternate; transform-origin: 50% 88%; }
+.bv-wave-front { animation: bv-wave-front 3.4s linear infinite; }
+.bv-wave-back  { animation: bv-wave-back  5.2s linear infinite; }
+.bv-bubble     { animation: bv-bubble 4s ease-in infinite; }
+.bv-halo       { animation: bv-halo 4.5s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bv-sway, .bv-wave-front, .bv-wave-back, .bv-bubble, .bv-halo { animation: none; }
+}

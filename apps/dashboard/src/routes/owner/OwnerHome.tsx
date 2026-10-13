@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Branch, InventoryAllocation, Invoice, Product, Sale } from '@branchport/shared';
 import { formatGHS, startOfWeek, startOfMonth } from '../../lib/utils';
-import { PerformanceTube, IconCurrency } from '../../components/Icons';
+import { IconCurrency } from '../../components/Icons';
+import BranchVessel from '../../components/BranchVessel';
+import { computeBranchHealth } from '../../lib/branchHealth';
 import { Funtunfunefu, BlackStar, Nsoromma, GyeNyame, Adinkrahene } from '../../components/AdinkraSymbols';
 
 const OWNER_CACHE_KEY = 'branchport-owner-snapshot-v2';
@@ -48,6 +50,7 @@ function Compare({ current, previous, label }: { current: number; previous: numb
 
 export default function OwnerHome() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [period, setPeriod] = useState('week');
   const [sales, setSales] = useState<Sale[]>([]);
   const [allSales, setAllSales] = useState<Sale[]>([]); // for comparisons
@@ -185,14 +188,41 @@ export default function OwnerHome() {
   const pendingInvoices = useMemo(() => invoices.filter((i) => i.status === 'pending'), [invoices]);
   const totalOwedToYou = pendingInvoices.reduce((s, i) => s + Number(i.amount_owed), 0);
 
-  // Revenue by branch
-  const branchRevenue = useMemo(() => {
-    return branches.map((b) => ({
-      name: b.name,
-      revenue: sales.filter((s) => s.branch_id === b.id).reduce((sum, x) => sum + Number(x.total_price), 0),
-      transactions: sales.filter((s) => s.branch_id === b.id).length,
-    })).sort((a, b) => b.revenue - a.revenue);
-  }, [branches, sales]);
+  // ── STORE HEALTH ──
+  // Each shop gets one colour + one score, built from the previous window of
+  // equal length so "momentum" means something. Tapping a vessel opens the
+  // drill-down page that explains the colour factor by factor.
+  const prevSales = useMemo(() => {
+    const from = period === 'today' ? todayStart() : period === 'week' ? thisWeekStart() : thisMonthStart();
+    const span = Date.now() - Date.parse(from);
+    if (!Number.isFinite(span) || span <= 0) return [] as Sale[];
+    const prevFrom = new Date(Date.parse(from) - span).toISOString();
+    return allSales.filter((s) => s.sold_at >= prevFrom && s.sold_at < from);
+  }, [period, allSales]);
+
+  const branchHealths = useMemo(() => {
+    const from = period === 'today' ? todayStart() : period === 'week' ? thisWeekStart() : thisMonthStart();
+    return branches
+      .map((b) => ({
+        branch: b,
+        health: computeBranchHealth({
+          branch: b,
+          branches,
+          products,
+          allocations,
+          invoices,
+          sales: sales.filter((s) => s.branch_id === b.id),
+          prevSales,
+          allSales,
+        }),
+        from,
+      }))
+      .sort((a, b) => b.health.score - a.health.score);
+  }, [branches, products, allocations, invoices, sales, prevSales, allSales, period]);
+
+  // Fullest vessel sets the 100% mark; the rest scale against it. Health
+  // score is the colour, revenue is the level — two jobs, two signals.
+  const maxRevenue = Math.max(1, ...branchHealths.map((x) => x.health.revenue));
 
   // Top products
   const topProducts = useMemo(() => {
@@ -344,32 +374,35 @@ export default function OwnerHome() {
           </div>
         </div>
 
-        {/* Branch performance — tube visual */}
+        {/* Branch performance — living calabash vessels */}
         <div className="bg-white rounded-2xl border border-gray-200 p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Funtunfunefu size={18} className="text-gray-400" />
-            <h2 className="text-base font-semibold text-gray-900">Store Performance</h2>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <Funtunfunefu size={18} className="text-gray-400" />
+              <h2 className="text-base font-semibold text-gray-900">Store Performance</h2>
+            </div>
           </div>
-          {branchRevenue.length === 0 || branchRevenue.every((b) => b.revenue === 0) ? (
-            <p className="text-sm text-gray-400 py-4">No sales data yet.</p>
+          <p className="text-xs text-gray-400 mb-3">
+            Colour = how the shop is doing · Fullness = sales vs the busiest · Tap one to see why
+          </p>
+          {branchHealths.length === 0 ? (
+            <p className="text-sm text-gray-400 py-6">No shops yet.</p>
+          ) : branchHealths.every((x) => x.health.revenue === 0 && x.health.transactions === 0) ? (
+            <p className="text-sm text-gray-400 py-6">No sales data yet — vessels fill as trade comes in.</p>
           ) : (
-            <div className="flex items-end justify-around gap-3 overflow-x-auto py-4">
-              {branchRevenue.map((b, i) => {
-                const maxRev = branchRevenue[0]?.revenue || 1;
-                const fillPct = (b.revenue / maxRev) * 100;
-                const colors = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7'];
-                return (
-                  <PerformanceTube
-                    key={b.name}
-                    fillPct={fillPct}
-                    label={b.name}
-                    value={formatGHS(b.revenue)}
-                    color={colors[i % colors.length]}
-                    height={100}
-                    width={40}
-                  />
-                );
-              })}
+            <div className="flex items-end justify-around gap-2 overflow-x-auto py-2">
+              {branchHealths.map(({ branch, health }) => (
+                <BranchVessel
+                  key={branch.id}
+                  fillPct={maxRevenue > 0 ? (health.revenue / maxRevenue) * 100 : 0}
+                  color={health.color}
+                  label={branch.name}
+                  value={formatGHS(health.revenue)}
+                  grade={health.grade}
+                  size={104}
+                  onClick={() => navigate(`/owner/branch/${branch.id}`, { state: { period } })}
+                />
+              ))}
             </div>
           )}
         </div>

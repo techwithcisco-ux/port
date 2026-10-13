@@ -457,6 +457,8 @@ export interface DebtorPayment {
   note: string;
   paid_at: string;
   created_by: string;
+  /** POS-local only: false while the server copy is still pending retry. */
+  serverSynced?: boolean;
 }
 
 export interface Creditor {

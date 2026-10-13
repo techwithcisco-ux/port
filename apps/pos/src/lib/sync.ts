@@ -151,6 +151,29 @@ export async function pushLedger(): Promise<{ pushed: number; failed: number }> 
     }
   }
 
+  // Debtor payments recorded while offline — push each new one up.
+  // These are append-only (no serverSynced flag on the type), so we track
+  // which ids are already on the server via a local marker set.
+  const pendingDebtorPays = await db.debtor_payments.toArray();
+  for (const dp of pendingDebtorPays) {
+    const row = dp as unknown as Record<string, unknown>;
+    if (row.serverSynced === true) continue;
+    try {
+      const { serverSynced: _ds, ...rest } = row;
+      const res = await api.from('debtor_payments').upsert(rest);
+      if (res.error) {
+        failed += 1;
+        lastSyncError = shortSyncError(res.error.message);
+      } else {
+        await db.debtor_payments.update(dp.id, { serverSynced: true } as never);
+        pushed += 1;
+      }
+    } catch (e) {
+      failed += 1;
+      lastSyncError = shortSyncError((e as Error).message || 'Network error');
+    }
+  }
+
   if (failed === 0 && lastSyncError === null) lastSyncError = null;
   return { pushed, failed };
 }
@@ -234,6 +257,13 @@ export async function pullLatestCatalog(branchId: string): Promise<void> {
       .filter((d) => !localPending.has(d.id))
       .map((d) => ({ ...d, serverSynced: true }));
     if (toPut.length > 0) await db.debtors.bulkPut(toPut as never);
+  }
+
+  // Debtor payments — pull all for this business (small table, no branch filter
+  // on the type; the debtor itself is branch-scoped).
+  const { data: debtorPayRows } = await api.from('debtor_payments').select('*').limit(1000);
+  if (debtorPayRows && Array.isArray(debtorPayRows) && debtorPayRows.length > 0) {
+    await db.debtor_payments.bulkPut(debtorPayRows as never);
   }
 
   // Expenses + payments (business-wide, branch_id filter where present).

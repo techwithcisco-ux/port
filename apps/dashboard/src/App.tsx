@@ -30,6 +30,7 @@ import FlagsPanel from './routes/owner/FlagsPanel';
 import Managers from './routes/owner/Managers';
 import MarketIntelligence from './routes/owner/MarketIntelligence';
 import OwnerStockAllocation from './routes/owner/OwnerStockAllocation';
+import BranchDetail from './routes/owner/BranchDetail';
 import Account from './routes/owner/Account';
 import StaffNotice from './routes/StaffNotice';
 import Welcome from './routes/Welcome';
@@ -418,6 +419,14 @@ export default function App() {
             element={
               <RequireRole roles={['owner']}>
                 <Account />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/owner/branch/:branchId"
+            element={
+              <RequireRole roles={['owner']}>
+                <BranchDetail />
               </RequireRole>
             }
           />

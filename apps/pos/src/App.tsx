@@ -7,6 +7,7 @@ import Activate from './routes/Activate';
 import Sell from './routes/Sell';
 import Dashboard from './routes/Dashboard';
 import InvoiceHistory from './routes/InvoiceHistory';
+import Debtors from './routes/Debtors';
 import PosBalanceSheet from './routes/PosBalanceSheet';
 import CalculatorPage from './routes/CalculatorPage';
 import SyncPage from './routes/SyncPage';
@@ -92,6 +93,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <InvoiceHistory />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/debtors"
+            element={
+              <RequireAuth>
+                <Debtors />
               </RequireAuth>
             }
           />

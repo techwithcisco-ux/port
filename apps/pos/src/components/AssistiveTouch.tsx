@@ -24,6 +24,14 @@ const allTabs: Tab[] = [
   { to: '/', label: 'Sell', icon: <IconCart size={24} /> },
   { to: '/dashboard', label: 'Stock', icon: <IconBox size={24} /> },
   { to: '/invoices', label: 'Invoices', icon: <IconReceipt size={24} />, feature: 'pos_invoice_history' },
+  { to: '/debtors', label: 'Debtors', icon: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 00-3-3.87" />
+      <path d="M16 3.13a4 4 0 010 7.75" />
+    </svg>
+  )},
   { to: '/balance-sheet', label: 'Balance', icon: <IconChart size={24} />, feature: 'pos_balance_sheet' },
   { to: '/calculator', label: 'Calculator', icon: <IconCalculator size={24} />, feature: 'posCalculator' },
   { to: '/sync', label: 'Sync', icon: <IconSync size={24} /> },

@@ -86,6 +86,10 @@ export default function Sell() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('full');
+  const [amountPaid, setAmountPaid] = useState('');       // partial-payment input
+  const [orderDiscount, setOrderDiscount] = useState(''); // order-level discount amount
+  const [discountReason, setDiscountReason] = useState(''); // why the discount was given
+  const [showSummary, setShowSummary] = useState(false);   // invoice summary modal
 
   // ── UI state ──
   const [confirming, setConfirming] = useState(false);
@@ -139,7 +143,20 @@ export default function Sell() {
     const unitPrice = l.cutPrice != null ? l.cutPrice : Number(l.variant.price);
     return sum + l.qty * unitPrice;
   }, 0);
-  const grandTotal = subtotal;
+
+  // Order-level discount (applied on top of any per-line cut prices)
+  const discountAmt = Math.max(0, Math.min(Number(orderDiscount) || 0, subtotal));
+  const grandTotal = Math.max(0, subtotal - discountAmt);
+
+  // Partial payment: how much the customer is paying right now.
+  // For 'full' mode this is the full total; for 'credit' it's whatever they
+  // hand over (can be 0). For 'partial' it's the explicit amount entered.
+  const paidNow = paymentMode === 'full'
+    ? grandTotal
+    : paymentMode === 'credit'
+      ? Math.max(0, Number(amountPaid) || 0)
+      : Math.max(0, Math.min(Number(amountPaid) || 0, grandTotal));
+  const owed = Math.max(0, Math.round((grandTotal - paidNow) * 100) / 100);
 
   // How many of each product are already in the order (tile badge).
   const cartQtyByProduct = useMemo(() => {
@@ -258,9 +275,9 @@ export default function Sell() {
     try {
       const now = nowISO();
       const items = buildInvoiceItems();
-      const paid = paymentMode === 'full' ? grandTotal : 0;
-      const owed = grandTotal - paid;
-      const invoiceStatus = owed <= 0 ? 'completed' : 'pending';
+      const paid = paidNow;
+      const owedAmt = owed;
+      const invoiceStatus = owedAmt <= 0 ? 'completed' : 'pending';
 
       // Write individual sale rows — use cut price if set
       let rows: QueuedSale[] = cart.map((l) => {
@@ -323,8 +340,16 @@ export default function Sell() {
           .map((it) => `${it.product_name}: ${ghs(it.original_unit_price!)} → ${ghs(it.unit_price)} each`);
         notesParts.push(`Discount applied: ${discountLines.join('; ')}`);
       }
+      if (discountAmt > 0) {
+        const reason = discountReason.trim();
+        notesParts.push(
+          `Order discount: −${ghs(discountAmt)}${reason ? ` (${reason})` : ''}`,
+        );
+      }
       if (paymentMode === 'credit') {
-        notesParts.push(`Credit sale — ${ghs(owed)} owed by ${customerName.trim() || 'walk-in'}`);
+        notesParts.push(`Credit sale — ${ghs(owedAmt)} owed by ${customerName.trim() || 'walk-in'}`);
+      } else if (paymentMode === 'partial' && owedAmt > 0) {
+        notesParts.push(`Partial payment — ${ghs(paid)} paid, ${ghs(owedAmt)} owed by ${customerName.trim() || 'walk-in'}`);
       }
 
       // Save invoice record (keep the original created_at when editing)
@@ -346,7 +371,7 @@ export default function Sell() {
         grand_total: Math.round(grandTotal * 100) / 100,
         payment_mode: paymentMode,
         amount_paid: Math.round(paid * 100) / 100,
-        amount_owed: Math.round(owed * 100) / 100,
+        amount_owed: owedAmt,
         status: invoiceStatus,
         notes: notesParts.join(' | '),
         created_at: originalCreated ?? now,
@@ -359,12 +384,13 @@ export default function Sell() {
 
       await db.invoices.put(invoice);
 
-      // Credit → debtor. Resuming must settle or update the EXISTING debtor
-      // for this invoice instead of creating a second one.
+      // Credit or partial → debtor. Resuming must settle or update the
+      // EXISTING debtor for this invoice instead of creating a second one.
       const existingDebtor = editingInvoiceId
         ? await db.debtors.where('invoice_id').equals(editingInvoiceId).first()
         : undefined;
-      if (owed > 0) {
+      if (owedAmt > 0) {
+        const debtorStatus = paid > 0 ? 'partial' as const : 'pending' as const;
         const debtor = {
           id: existingDebtor?.id ?? crypto.randomUUID(),
           business_id: profile.business_id,
@@ -374,9 +400,9 @@ export default function Sell() {
           invoice_id: invoice.id,
           original_amount: grandTotal,
           amount_paid: paid,
-          amount_owed: owed,
-          status: 'pending' as const,
-          notes: `Invoice ${invoice.invoice_number} — credit sale`,
+          amount_owed: owedAmt,
+          status: debtorStatus,
+          notes: `Invoice ${invoice.invoice_number} — ${paymentMode === 'credit' ? 'credit sale' : 'partial payment'}`,
           created_at: existingDebtor?.created_at ?? now,
           updated_at: now,
         };
@@ -395,7 +421,7 @@ export default function Sell() {
         });
       }
 
-      setFeedback(`Sale complete — ${ghs(grandTotal)}${owed > 0 ? ` (${ghs(owed)} owed)` : ''}`);
+      setFeedback(`Sale complete — ${ghs(grandTotal)}${owedAmt > 0 ? ` (${ghs(owedAmt)} owed)` : ''}`);
       resetForm();
       void pushQueuedSales().then(() => pushLedger());
     } catch (err) {
@@ -439,6 +465,9 @@ export default function Sell() {
     setCustomerName('');
     setCustomerPhone('');
     setPaymentMode('full');
+    setAmountPaid('');
+    setOrderDiscount('');
+    setDiscountReason('');
     setShowCustomer(false);
     setSearch('');
     setSelectedProduct(null);
@@ -873,8 +902,35 @@ export default function Sell() {
         {/* Totals & actions — simplified. pr-24 keeps every control clear of the
             assistive-touch circle, which parks in the bottom-right by default. */}
         <div className="shrink-0 bg-white border-t border-gray-200 pl-5 pr-24 py-4 space-y-3 safe-bottom">
-          {/* Payment mode — just Cash or Credit */}
-          <div className="grid grid-cols-2 gap-2">
+          {/* Invoice summary icon — opens the full breakdown before placing */}
+          <button
+            type="button"
+            onClick={() => setShowSummary(true)}
+            disabled={cart.length === 0}
+            className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700 hover:border-gray-900 hover:bg-white transition-colors disabled:opacity-40 min-h-[48px]"
+          >
+            <span className="flex items-center gap-2">
+              <span className="relative">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <path d="M16 10a4 4 0 01-8 0" />
+                </svg>
+                {cart.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-ghana-green px-1 text-[10px] font-bold text-white">
+                    {cart.length}
+                  </span>
+                )}
+              </span>
+              Invoice summary
+            </span>
+            <span className="text-xs text-gray-500">
+              {cart.length} item{cart.length !== 1 ? 's' : ''} · {ghs(grandTotal)}
+            </span>
+          </button>
+
+          {/* Payment mode — Cash, Partial, or Credit */}
+          <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => setPaymentMode('full')}
               className={`py-3 rounded-xl text-sm font-medium transition-colors min-h-[48px] ${
@@ -884,6 +940,16 @@ export default function Sell() {
               }`}
             >
               💵 Cash
+            </button>
+            <button
+              onClick={() => setPaymentMode('partial')}
+              className={`py-3 rounded-xl text-sm font-medium transition-colors min-h-[48px] ${
+                paymentMode === 'partial'
+                  ? 'bg-ghana-green text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              💰 Partial
             </button>
             <button
               onClick={() => setPaymentMode('credit')}
@@ -897,6 +963,38 @@ export default function Sell() {
             </button>
           </div>
 
+          {/* Partial payment — enter amount paid now */}
+          {paymentMode === 'partial' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 space-y-2">
+              <p className="text-sm font-medium text-blue-800">
+                💰 Partial payment — customer pays part now, rest later
+              </p>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-blue-700 shrink-0">Amount paid now</label>
+                <input
+                  type="number"
+                  min="0"
+                  max={grandTotal}
+                  step="0.01"
+                  inputMode="decimal"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                  placeholder="0.00"
+                  className="flex-1 border border-blue-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue-600 tabular-nums"
+                />
+              </div>
+              {Number(amountPaid) > 0 && (
+                <p className="text-xs text-blue-600">
+                  Customer pays {ghs(paidNow)} now · owes <strong>{ghs(owed)}</strong>
+                </p>
+              )}
+              {!customerName.trim() && (
+                <p className="text-xs text-amber-600">⚠ Add customer name so we know who owes</p>
+              )}
+            </div>
+          )}
+
+          {/* Credit — customer pays nothing now */}
           {paymentMode === 'credit' && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1">
               <p className="text-sm font-medium text-amber-800">
@@ -911,14 +1009,70 @@ export default function Sell() {
             </div>
           )}
 
+          {/* Order-level discount */}
+          {discountAmt > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-green-800">🏷️ Order discount</p>
+                <button
+                  type="button"
+                  onClick={() => { setOrderDiscount(''); setDiscountReason(''); }}
+                  className="text-xs text-green-600 hover:text-green-800 underline"
+                >
+                  Remove
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-green-700 shrink-0">Amount off</span>
+                <input
+                  type="number"
+                  min="0"
+                  max={subtotal}
+                  step="0.01"
+                  inputMode="decimal"
+                  value={orderDiscount}
+                  onChange={(e) => setOrderDiscount(e.target.value)}
+                  className="flex-1 border border-green-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-green-600 tabular-nums"
+                />
+              </div>
+              <input
+                value={discountReason}
+                onChange={(e) => setDiscountReason(e.target.value)}
+                placeholder="Reason (e.g. loyalty discount, damaged packaging)"
+                className="w-full border border-green-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-green-600"
+              />
+              <p className="text-xs text-green-600">
+                Subtotal {ghs(subtotal)} → Total <strong>{ghs(grandTotal)}</strong> (−{ghs(discountAmt)})
+              </p>
+            </div>
+          )}
+
+          {/* Add discount button — only when no discount yet */}
+          {discountAmt <= 0 && cart.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setOrderDiscount(String(grandTotal > 0 ? Math.min(1, grandTotal) : 0))}
+              className="w-full flex items-center gap-2 rounded-xl border border-dashed border-gray-300 px-4 py-2.5 text-sm text-gray-500 hover:border-gray-900 hover:text-gray-700 transition-colors min-h-[40px]"
+            >
+              🏷️ Add order discount
+            </button>
+          )}
+
           {/* Savings display — when discounts are applied */}
           {totalSavings > 0 && (
             <div className="flex justify-between text-sm bg-green-50 border border-green-200 rounded-xl px-3 py-2">
               <span className="text-green-700">🎉 Customer saves</span>
-              <span className="font-bold tabular-nums text-green-700">{ghs(totalSavings)}</span>
+              <span className="font-bold tabular-nums text-green-700">{ghs(totalSavings + discountAmt)}</span>
             </div>
           )}
 
+          {/* Subtotal / discount / total breakdown */}
+          {discountAmt > 0 && (
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>Subtotal</span>
+              <span className="tabular-nums line-through">{ghs(subtotal)}</span>
+            </div>
+          )}
           {/* Total — big and clear */}
           <div className="flex justify-between items-center pt-2 border-t border-gray-100">
             <span className="font-semibold text-gray-900 text-base">Total</span>
@@ -939,7 +1093,13 @@ export default function Sell() {
             disabled={confirming || cart.length === 0}
             className="w-full py-4 rounded-xl bg-ghana-green text-white text-base font-semibold hover:bg-[#007A4A] disabled:opacity-50 min-h-[56px]"
           >
-            {confirming ? 'Recording…' : paymentMode === 'full' ? '✓ Complete sale' : `📝 Save credit — ${ghs(grandTotal)}`}
+            {confirming
+              ? 'Recording…'
+              : paymentMode === 'full'
+                ? '✓ Complete sale'
+                : paymentMode === 'partial'
+                  ? `💰 Save partial — ${ghs(paidNow)} paid, ${ghs(owed)} owed`
+                  : `📝 Save credit — ${ghs(grandTotal)} owed`}
           </button>
         </div>
 
@@ -996,6 +1156,154 @@ export default function Sell() {
               </button>
             </div>
             <Calculator />
+          </div>
+        </div>
+      )}
+
+      {/* Invoice summary modal — full breakdown before placing the order */}
+      {showSummary && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Invoice summary">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowSummary(false)} aria-hidden />
+          <div className="relative w-full sm:max-w-md max-h-[90dvh] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="shrink-0 px-5 pt-5 pb-3 border-b border-gray-100">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-lg font-bold text-gray-900">Invoice Summary</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSummary(false)}
+                  aria-label="Close summary"
+                  className="grid h-9 w-9 place-items-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-xs text-gray-500">
+                {editingInvoiceId ? 'Editing existing invoice' : 'Review before placing the order'}
+              </p>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
+              {/* Customer */}
+              {(customerName || customerPhone) && (
+                <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+                  <span className="grid h-9 w-9 place-items-center rounded-full bg-gray-900 text-white text-sm font-bold">
+                    {(customerName || '?').slice(0, 1).toUpperCase()}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{customerName || 'Walk-in'}</p>
+                    {customerPhone && <p className="text-xs text-gray-500">{customerPhone}</p>}
+                  </div>
+                </div>
+              )}
+
+              {/* Line items */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                  Items ({cart.length})
+                </p>
+                {cart.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-4 text-center">No items in this order</p>
+                ) : (
+                  <div className="space-y-2">
+                    {cart.map((l, idx) => {
+                      const unitPrice = l.cutPrice != null ? l.cutPrice : Number(l.variant.price);
+                      const lineTotal = l.qty * unitPrice;
+                      return (
+                        <div key={l.key} className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
+                          <span className="text-xs text-gray-400 w-5 text-center mt-0.5 tabular-nums">{idx + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{l.product.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {l.qty} × {ghs(unitPrice)} <span className="text-gray-400">/ {l.variant.name}</span>
+                            </p>
+                            {l.cutPrice != null && (
+                              <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium">
+                                CUT · was {ghs(Number(l.variant.price))}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm font-semibold tabular-nums text-gray-900 shrink-0">
+                            {ghs(lineTotal)}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Totals */}
+              <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Subtotal</span>
+                  <span className="tabular-nums text-gray-900">{ghs(subtotal)}</span>
+                </div>
+                {discountAmt > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-green-700">Order discount{discountReason ? ` (${discountReason})` : ''}</span>
+                    <span className="tabular-nums text-green-700 font-medium">−{ghs(discountAmt)}</span>
+                  </div>
+                )}
+                {totalSavings > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-green-700">Item savings</span>
+                    <span className="tabular-nums text-green-700 font-medium">−{ghs(totalSavings)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-baseline pt-2 border-t border-gray-200">
+                  <span className="font-semibold text-gray-900">Total</span>
+                  <span className="text-2xl font-bold tabular-nums text-gray-900">{ghs(grandTotal)}</span>
+                </div>
+              </div>
+
+              {/* Payment preview */}
+              <div className={`rounded-xl px-4 py-3 text-sm ${
+                paymentMode === 'full' ? 'bg-green-50 text-green-800'
+                : paymentMode === 'partial' ? 'bg-blue-50 text-blue-800'
+                : 'bg-amber-50 text-amber-800'
+              }`}>
+                <p className="font-medium">
+                  {paymentMode === 'full' ? '💵 Paying in full'
+                  : paymentMode === 'partial' ? '💰 Partial payment'
+                  : '📝 Buy on credit'}
+                </p>
+                {paymentMode !== 'full' && (
+                  <p className="text-xs mt-1">
+                    {paymentMode === 'partial'
+                      ? `Paying ${ghs(paidNow)} now · owing ${ghs(owed)}`
+                      : `Owing ${ghs(grandTotal)} — no payment now`}
+                  </p>
+                )}
+                {paymentMode !== 'full' && !customerName.trim() && (
+                  <p className="text-xs mt-1 text-amber-600 font-medium">⚠ Add customer name to track the debt</p>
+                )}
+              </div>
+            </div>
+
+            {/* Footer actions */}
+            <div className="shrink-0 px-5 py-4 border-t border-gray-100 safe-bottom space-y-2">
+              <button
+                onClick={() => { setShowSummary(false); completeOrder(); }}
+                disabled={confirming || cart.length === 0}
+                className="w-full py-4 rounded-xl bg-ghana-green text-white text-base font-semibold hover:bg-[#007A4A] disabled:opacity-50 min-h-[56px]"
+              >
+                {confirming
+                  ? 'Recording…'
+                  : paymentMode === 'full'
+                    ? `✓ Place order — ${ghs(grandTotal)}`
+                    : paymentMode === 'partial'
+                      ? `✓ Place order — ${ghs(paidNow)} paid, ${ghs(owed)} owed`
+                      : `✓ Place order — ${ghs(grandTotal)} on credit`}
+              </button>
+              <button
+                onClick={() => setShowSummary(false)}
+                className="w-full py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 min-h-[44px]"
+              >
+                Keep editing
+              </button>
+            </div>
           </div>
         </div>
       )}
